@@ -101,7 +101,8 @@ replaces them with `:shortcode:` labels *before* stripping runs. With
 | U+2193  | ↓ | `v` |
 | U+21D2  | ⇒ | `=>` |
 | U+21D0  | ⇐ | `<=` |
-| U+2194  | ↔ | `<->` |
+| U+21D4  | ⇔ | `<=>` |
+| U+2194  |  | `<->` |
 
 ### Math operators
 
@@ -112,6 +113,8 @@ replaces them with `:shortcode:` labels *before* stripping runs. With
 | U+2265  | ≥ | `>=` |
 | U+00D7  | × | `*` |
 | U+00F7  | ÷ | `/` |
+| U+00B1  | ± | `+/-` |
+| U+2212  | − | `-` |
 | U+221E  | ∞ | `inf` |
 | U+2248  | ≈ | `~=` |
 | U+221A  | √ | `sqrt` |

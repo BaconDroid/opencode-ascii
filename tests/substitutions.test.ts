@@ -352,8 +352,18 @@ describe("full pipeline", () => {
     });
     const map = new Map<string, string>(subs);
     const regex = buildRegex(subs);
-    const text = "const x = 'hello world';";
-    regex.lastIndex = 0;
-    expect(applySubstitutions(text, regex, map)).toBe(text);
+
+    const cases: [string, string][] = [
+      ["≠", "!="], // not equal
+      ["≤", "<="], // less-than or equal
+      ["≥", ">="], // greater-than or equal
+      ["×", "*"], // multiplication
+      ["÷", "/"], // division
+    ];
+
+    for (const [unicode, ascii] of cases) {
+      regex.lastIndex = 0;
+      expect(applySubstitutions(unicode, regex, map)).toBe(ascii);
+    }
   });
 });
