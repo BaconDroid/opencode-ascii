@@ -7,7 +7,7 @@ An [OpenCode](https://opencode.ai) plugin that automatically substitutes unicode
 LLMs love to reach for typographic characters — em-dashes, curly quotes, arrows, emoji — that look great in a browser but cause friction in terminals, code, config files, and plain-text tooling. This plugin intercepts output at two points:
 
 - **AI text responses** (`experimental.text.complete`) — rewrites text parts before they are stored.
-- **File write/edit tool calls** (`tool.execute.before`) — rewrites `write`, `edit`, `multiedit`, and `apply_patch` tool arguments before execution.
+- **File write/edit tool calls** (`tool.execute.before`) — rewrites `write`, `edit`, and `multiedit` tool arguments before execution. `apply_patch` is deliberately left alone; see [apply_patch is not rewritten](#apply_patch-is-not-rewritten).
 
 ## Installation
 
@@ -46,33 +46,6 @@ All four substitution categories are **enabled by default**. Disable any categor
 | `arrows`      | boolean | `true`  | `→` → `->`, `←` → `<-`, `⇒` → `=>`, etc.  |
 | `math`        | boolean | `true`  | `≠` → `!=`, `≤` → `<=`, `×` → `*`, etc.   |
 | `emojis`      | boolean | `true`  | Common emoji -> `:shortcode:` labels         |
-| `stripNonLatin` | boolean | `false` | Strip all non-Latin-script characters after substitution |
-
-### stripNonLatin
-
-`stripNonLatin` is **opt-in** and runs as a second pass, *after* the
-substitutions above:
-
-```
-substitute (punctuation/arrows/math/emojis)  ->  strip non-Latin scripts
-```
-
-It removes every character that is not in the Unicode **Latin**, **Common**,
-or **Inherited** scripts. That keeps accented Latin text (`Café déjà vu`,
-`«naïve»`), ASCII punctuation, digits, whitespace, and combining marks
-(decomposed `é` keeps its accent), while dropping CJK, Cyrillic, Arabic,
-Hebrew, Greek, and other scripts.
-
-> **Caution:** this is destructive on the file-writing hooks (`write`, `edit`,
-> `multiedit`, `apply_patch`): a file that legitimately contains non-Latin
-> text — Japanese documentation, a Russian string table, an Arabic
-> translation — will have those characters deleted without a trace. Keep the
-> option off unless your project is Latin-only.
-
-Note that most pictographic emoji are `Script=Common` and survive stripping
-untouched. In the normal pipeline this does not matter: the `emojis` category
-replaces them with `:shortcode:` labels *before* stripping runs. With
-`emojis: false` and `stripNonLatin: true`, raw emoji pass through.
 
 ## Substitution reference
 
@@ -153,7 +126,31 @@ The plugin uses two hooks:
    - `output.args.content` for the `write` tool
    - `output.args.newString` for the `edit` tool (never `oldString` — it must match existing file content exactly)
    - each `output.args.edits[].newString` for the `multiedit` tool
-   - `output.args.patchText` for the `apply_patch` tool
+
+### apply_patch is not rewritten
+
+`apply_patch` is **not** handled, and its `args.patchText` payload is passed
+through verbatim.
+
+A unified diff is machine-parsed, not prose. Its `-` removal lines and its
+context lines must match the target file **byte for byte**, otherwise the patch
+is rejected. Substituting inside `patchText` rewrites those lines, so any file
+that legitimately contains a typographic character breaks the patch. With
+default options and this file on disk:
+
+```
+function greet() {
+  console.log("hello — world");
+}
+```
+
+a patch whose removal line is `-  console.log("hello — world");` came out of
+the plugin as `-  console.log("hello - world");`, which no longer matches the
+file, and the `+` line was mangled the same way. The patch failed to apply.
+
+This is a bug fix: the plugin previously rewrote `patchText`. `write` and
+`edit` remain fully substituted, and neither involves matching a removal line
+against existing bytes.
 
 Substitution uses a single compiled regex built from all active mappings, so there is no O(n) string-replace loop per character.
 

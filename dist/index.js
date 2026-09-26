@@ -19,7 +19,9 @@ function resolveConfig(options) {
  *
  * Covered hooks:
  *  - `experimental.text.complete` : rewrites completed AI text parts
- *  - `tool.execute.before`        : rewrites `write`, `edit`, and `apply_patch` tool arguments
+ *  - `tool.execute.before`        : rewrites `write` and `edit` tool arguments
+ *                                  (`apply_patch` is intentionally passed
+ *                                  through verbatim)
  */
 export const AsciiPlugin = async (_ctx, options) => {
     const config = resolveConfig(options);
@@ -53,9 +55,18 @@ export const AsciiPlugin = async (_ctx, options) => {
          * Rewrite file-writing tool arguments before execution.
          *
          * Tools handled:
-         *  - `write`       : `args.content`
-         *  - `edit`        : `args.newString` (NOT `oldString` -- it must match existing file content)
-         *  - `apply_patch` : `args.patchText` (unified diff content)
+         *  - `write` : `args.content` (fresh content, nothing to match against)
+         *  - `edit`  : `args.newString` (NOT `oldString` -- `oldString` is matched
+         *              against the real file, `newString` is what gets written)
+         *
+         * `apply_patch` is deliberately NOT handled. `args.patchText` is a
+         * machine-parsed unified diff, not prose: its `-` removal lines and its
+         * context lines must match the target file BYTE FOR BYTE or the patch is
+         * rejected. Substituting inside `patchText` rewrites those lines, so a
+         * file that legitimately contains a typographic character (an em dash,
+         * say) would no longer match and the patch would fail to apply. The
+         * payload is therefore passed through verbatim. (This is a bug fix: the
+         * plugin previously rewrote `patchText` and could break patches.)
          */
         "tool.execute.before": async (input, output) => {
             switch (input.tool) {
@@ -68,12 +79,6 @@ export const AsciiPlugin = async (_ctx, options) => {
                 case "edit": {
                     if (typeof output.args?.newString === "string") {
                         output.args.newString = substitute(output.args.newString);
-                    }
-                    break;
-                }
-                case "apply_patch": {
-                    if (typeof output.args?.patchText === "string") {
-                        output.args.patchText = substitute(output.args.patchText);
                     }
                     break;
                 }

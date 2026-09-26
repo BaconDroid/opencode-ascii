@@ -4,27 +4,18 @@ import {
   buildSubstitutions,
   buildRegex,
   applySubstitutions,
-  stripNonLatinChars,
 } from "./substitutions";
 
 /**
  * Options accepted by AsciiPlugin.
  *
- * All substitution categories default to `true` (enabled).
+ * All categories default to `true` (enabled).
  * Set a category to `false` to skip substitution for it.
- * `stripNonLatin` defaults to `false` (opt-in) because it is destructive
- * for content that legitimately contains non-Latin text.
  *
  * @example
  * // opencode.json — disable emoji and math substitutions
  * {
  *   "plugin": [["opencode-ascii", { "emojis": false, "math": false }]]
- * }
- *
- * @example
- * // opencode.json — substitute as usual, then drop every non-Latin character
- * {
- *   "plugin": [["opencode-ascii", { "stripNonLatin": true }]]
  * }
  */
 export type AsciiPluginOptions = SubstitutionConfig;
@@ -37,8 +28,6 @@ function resolveConfig(options?: PluginOptions): SubstitutionConfig {
   if (typeof options["arrows"] === "boolean") config.arrows = options["arrows"];
   if (typeof options["math"] === "boolean") config.math = options["math"];
   if (typeof options["emojis"] === "boolean") config.emojis = options["emojis"];
-  if (typeof options["stripNonLatin"] === "boolean")
-    config.stripNonLatin = options["stripNonLatin"];
   return config;
 }
 
@@ -48,7 +37,9 @@ function resolveConfig(options?: PluginOptions): SubstitutionConfig {
  *
  * Covered hooks:
  *  - `experimental.text.complete` : rewrites completed AI text parts
- *  - `tool.execute.before`        : rewrites `write`, `edit`, and `apply_patch` tool arguments
+ *  - `tool.execute.before`        : rewrites `write` and `edit` tool arguments
+ *                                  (`apply_patch` is intentionally passed
+ *                                  through verbatim)
  */
 export const AsciiPlugin: Plugin = async (
   _ctx: PluginInput,
@@ -57,8 +48,8 @@ export const AsciiPlugin: Plugin = async (
   const config = resolveConfig(options);
   const substitutions = buildSubstitutions(config);
 
-  if (substitutions.length === 0 && !config.stripNonLatin) {
-    // All categories disabled and no stripping — nothing to do.
+  if (substitutions.length === 0) {
+    // All categories disabled — nothing to do.
     return {};
   }
 
@@ -71,11 +62,7 @@ export const AsciiPlugin: Plugin = async (
   function substitute(text: string): string {
     // Reset the regex state (stateful with /g flag)
     regex.lastIndex = 0;
-    const substituted = applySubstitutions(text, regex, map);
-    // Stripping runs after substitution so mapped characters are already
-    // ASCII, and so `:shortcode:` labels survive untouched.
-    if (config.stripNonLatin) return stripNonLatinChars(substituted);
-    return substituted;
+    return applySubstitutions(text, regex, map);
   }
 
   return {
@@ -94,9 +81,18 @@ export const AsciiPlugin: Plugin = async (
      * Rewrite file-writing tool arguments before execution.
      *
      * Tools handled:
-     *  - `write`       : `args.content`
-     *  - `edit`        : `args.newString` (NOT `oldString` -- it must match existing file content)
-     *  - `apply_patch` : `args.patchText` (unified diff content)
+     *  - `write` : `args.content` (fresh content, nothing to match against)
+     *  - `edit`  : `args.newString` (NOT `oldString` -- `oldString` is matched
+     *              against the real file, `newString` is what gets written)
+     *
+     * `apply_patch` is deliberately NOT handled. `args.patchText` is a
+     * machine-parsed unified diff, not prose: its `-` removal lines and its
+     * context lines must match the target file BYTE FOR BYTE or the patch is
+     * rejected. Substituting inside `patchText` rewrites those lines, so a
+     * file that legitimately contains a typographic character (an em dash,
+     * say) would no longer match and the patch would fail to apply. The
+     * payload is therefore passed through verbatim. (This is a bug fix: the
+     * plugin previously rewrote `patchText` and could break patches.)
      */
     "tool.execute.before": async (input, output) => {
       switch (input.tool) {
@@ -109,12 +105,6 @@ export const AsciiPlugin: Plugin = async (
         case "edit": {
           if (typeof output.args?.newString === "string") {
             output.args.newString = substitute(output.args.newString);
-          }
-          break;
-        }
-        case "apply_patch": {
-          if (typeof output.args?.patchText === "string") {
-            output.args.patchText = substitute(output.args.patchText);
           }
           break;
         }
