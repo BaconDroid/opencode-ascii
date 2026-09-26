@@ -135,31 +135,61 @@ describe("tool.execute.before: edit", () => {
 });
 
 // ---------------------------------------------------------------------------
-// tool.execute.before hook -- apply_patch tool
+// tool.execute.before hook -- apply_patch tool (INTENTIONALLY NOT HANDLED)
 // ---------------------------------------------------------------------------
 
 describe("tool.execute.before: apply_patch", () => {
   const baseInput = { tool: "apply_patch", sessionID: "s1", callID: "c1" };
 
-  it("substitutes unicode in args.patchText", async () => {
+  it("passes args.patchText through COMPLETELY UNCHANGED", async () => {
+    // apply_patch payloads are machine-parsed unified diffs. The plugin used
+    // to substitute inside them, which corrupted the diff and made patches
+    // fail to apply. patchText must now be left byte-for-byte alone.
     const hooks = await makeHooks();
-    const output = {
-      args: {
-        patchText:
-          "--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new → value",
-      },
-    };
+    const patchText =
+      "--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new → value";
+    const output = { args: { patchText } };
     await hooks["tool.execute.before"]?.(baseInput, output);
-    expect(output.args.patchText).toContain("+new -> value");
+    expect(output.args.patchText).toBe(patchText);
   });
 
-  it("does NOT use args.patch (wrong field name)", async () => {
-    // Regression test: old code used args.patch; correct field is args.patchText
+  it("leaves a `-` removal line and context line byte-identical (regression)", async () => {
+    // Reproduces the reported bug:
+    //   file on disk   : console.log("hello — world");
+    //   patch `-` line : -  console.log("hello — world");
+    //   after plugin   : -  console.log("hello - world");  <- no longer matches
+    // The removal/context lines must match the target file byte for byte, so
+    // the em dash must survive verbatim even with DEFAULT options.
     const hooks = await makeHooks();
-    const output = { args: { patch: "wrong — field" } };
+    const patchText = [
+      "--- a/greet.js",
+      "+++ b/greet.js",
+      "@@ -1,3 +1,3 @@",
+      ' console.log("hi — there");',
+      '-  console.log("hello — world");',
+      '+  console.log("hello — world!");',
+    ].join("\n");
+    const output = { args: { patchText } };
     await hooks["tool.execute.before"]?.(baseInput, output);
-    // args.patch should be untouched; patchText is undefined so nothing happens
-    expect(output.args.patch).toBe("wrong — field");
+    expect(output.args.patchText).toBe(patchText);
+    expect(output.args.patchText).toContain('-  console.log("hello — world");');
+  });
+
+  it("leaves a non-Latin diff header path byte-identical", async () => {
+    // The `---`/`+++` header lines name the target file. Rewriting them would
+    // point the patch at a different (or non-existent) path.
+    const hooks = await makeHooks();
+    const patchText = [
+      "--- a/i18n/日本語.ts",
+      "+++ b/i18n/日本語.ts",
+      "@@ -1 +1 @@",
+      "-const msg = 'привет';",
+      "+const msg = 'привет!';",
+    ].join("\n");
+    const output = { args: { patchText } };
+    await hooks["tool.execute.before"]?.(baseInput, output);
+    expect(output.args.patchText).toBe(patchText);
+    expect(output.args.patchText).toContain("--- a/i18n/日本語.ts");
   });
 });
 
