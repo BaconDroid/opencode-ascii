@@ -14,8 +14,8 @@ import {
  * Set a category to `false` to skip substitution for it.
  *
  * `stripNonLatin` defaults to `false` (opt-in) and applies to AI text
- * responses ONLY. It is never applied to file write/edit/patch arguments,
- * because deleting characters from file content is irreversible data loss.
+ * responses only — never to file arguments, where dropping characters would
+ * be irreversible data loss.
  *
  * @example
  * // opencode.json — disable emoji and math substitutions
@@ -24,8 +24,7 @@ import {
  * }
  *
  * @example
- * // opencode.json — substitute AI text as usual, then drop non-Latin
- * // characters from AI responses only (file writes stay untouched)
+ * // opencode.json — drop non-Latin characters from AI responses only
  * {
  *   "plugin": [["opencode-ascii", { "stripNonLatin": true }]]
  * }
@@ -50,11 +49,8 @@ function resolveConfig(options?: PluginOptions): SubstitutionConfig {
  * in AI responses and file write/edit operations.
  *
  * Covered hooks:
- *  - `experimental.text.complete` : rewrites completed AI text parts
- *                                  (substitution + optional `stripNonLatin`)
- *  - `tool.execute.before`        : rewrites `write` and `edit` tool arguments
- *                                  (substitution ONLY; `apply_patch` is
- *                                  intentionally passed through verbatim)
+ *  - `experimental.text.complete` : rewrites completed AI text parts (substitution + optional `stripNonLatin`)
+ *  - `tool.execute.before`        : rewrites `write` and `edit` tool arguments (substitution only)
  */
 export const AsciiPlugin: Plugin = async (
   _ctx: PluginInput,
@@ -81,12 +77,11 @@ export const AsciiPlugin: Plugin = async (
   }
 
   /**
-   * Substitution + optional non-Latin stripping.
+   * Substitution, then optional non-Latin stripping.
    *
-   * Used for AI text parts ONLY. Stripping is deliberately NOT applied to
-   * file-writing tool arguments: removing characters from file content is
-   * irreversible data loss, and `write`/`edit` payloads legitimately contain
-   * non-Latin text (translated docs, string tables, i18n fixtures).
+   * Used for AI text parts only: `write`/`edit` payloads legitimately contain
+   * non-Latin text (translated docs, string tables), and removing characters
+   * from them would be irreversible data loss.
    */
   function rewriteText(text: string): string {
     const substituted = substitute(text);
@@ -100,7 +95,7 @@ export const AsciiPlugin: Plugin = async (
      * `experimental.text.complete` fires once per text part after the
      * streaming is done, giving us `output.text` to modify in place.
      *
-     * This is the ONLY hook where `stripNonLatin` is applied.
+     * The only hook where `stripNonLatin` is applied.
      */
     "experimental.text.complete": async (_input, output) => {
       if (typeof output.text === "string") {
@@ -114,18 +109,13 @@ export const AsciiPlugin: Plugin = async (
      * Substitutions only — `stripNonLatin` is never applied here.
      *
      * Tools handled:
-     *  - `write` : `args.content` (fresh content, nothing to match against)
-     *  - `edit`  : `args.newString` (NOT `oldString` -- `oldString` is matched
-     *              against the real file, `newString` is what gets written)
+     *  - `write` : `args.content`
+     *  - `edit`  : `args.newString` (NOT `oldString` -- it must match existing file content)
      *
-     * `apply_patch` is deliberately NOT handled. `args.patchText` is a
-     * machine-parsed unified diff, not prose: its `-` removal lines and its
-     * context lines must match the target file BYTE FOR BYTE or the patch is
-     * rejected. Substituting inside `patchText` rewrites those lines, so a
-     * file that legitimately contains a typographic character (an em dash,
-     * say) would no longer match and the patch would fail to apply. The
-     * payload is therefore passed through verbatim. (This is a bug fix: the
-     * plugin previously rewrote `patchText` and could break patches.)
+     * `apply_patch` is deliberately NOT handled: `args.patchText` is a
+     * machine-parsed unified diff whose removal and context lines must match
+     * the target file byte for byte, so substituting inside it makes patches
+     * fail to apply.
      */
     "tool.execute.before": async (input, output) => {
       switch (input.tool) {

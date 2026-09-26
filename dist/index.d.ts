@@ -7,8 +7,8 @@ import { type SubstitutionConfig } from "./substitutions";
  * Set a category to `false` to skip substitution for it.
  *
  * `stripNonLatin` defaults to `false` (opt-in) and applies to AI text
- * responses ONLY. It is never applied to file write/edit/patch arguments,
- * because deleting characters from file content is irreversible data loss.
+ * responses only — never to file arguments, where dropping characters would
+ * be irreversible data loss.
  *
  * @example
  * // opencode.json — disable emoji and math substitutions
@@ -17,8 +17,7 @@ import { type SubstitutionConfig } from "./substitutions";
  * }
  *
  * @example
- * // opencode.json — substitute AI text as usual, then drop non-Latin
- * // characters from AI responses only (file writes stay untouched)
+ * // opencode.json — drop non-Latin characters from AI responses only
  * {
  *   "plugin": [["opencode-ascii", { "stripNonLatin": true }]]
  * }
@@ -29,11 +28,8 @@ export type AsciiPluginOptions = SubstitutionConfig;
  * in AI responses and file write/edit operations.
  *
  * Covered hooks:
- *  - `experimental.text.complete` : rewrites completed AI text parts
- *                                  (substitution + optional `stripNonLatin`)
- *  - `tool.execute.before`        : rewrites `write` and `edit` tool arguments
- *                                  (substitution ONLY; `apply_patch` is
- *                                  intentionally passed through verbatim)
+ *  - `experimental.text.complete` : rewrites completed AI text parts (substitution + optional `stripNonLatin`)
+ *  - `tool.execute.before`        : rewrites `write` and `edit` tool arguments (substitution only)
  */
 export declare const AsciiPlugin: Plugin;
 declare const _default: {

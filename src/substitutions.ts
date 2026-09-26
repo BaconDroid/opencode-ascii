@@ -219,22 +219,14 @@ export function applySubstitutions(
 const NON_LATIN = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/gu;
 
 /**
- * Remove every character that does not belong to the Latin, Common, or
- * Inherited Unicode scripts.
+ * Remove every character outside the Latin, Common, and Inherited scripts.
  *
- * Applied AFTER substitutions, so mapped characters are already ASCII by
- * the time stripping runs. It keeps:
- *  - Latin, including extended/diacritic letters such as `é`, `ç`, `ñ`
- *  - Common (punctuation, digits, whitespace)
- *  - Inherited (combining marks, so decomposed text such as `e` + U+0301
- *    keeps its accent instead of being mangled)
- *
- * and removes CJK, Cyrillic, Arabic, Hebrew, Greek, and any other script.
- *
- * Note: most pictographic emoji are Script=Common and therefore SURVIVE
- * stripping raw. In the normal pipeline they never reach this function,
- * because the `emojis` category converts them to `:shortcode:` labels
- * first; with `emojis: false` + `stripNonLatin: true` they pass through.
+ * Applied after substitutions, so mapped characters are already ASCII. Keeps
+ * Latin (`é`, `ç`, `ñ`), Common (punctuation, digits) and Inherited (combining
+ * marks, so `e` + U+0301 keeps its accent); removes CJK, Cyrillic, Arabic,
+ * Hebrew, Greek and any other script. Most pictographic emoji are Common and
+ * survive raw — in the normal pipeline `emojis` converts them to `:shortcode:`
+ * first.
  */
 export function stripNonLatinChars(text: string): string {
   return text.replace(NON_LATIN, "");
