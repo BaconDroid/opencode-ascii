@@ -22,9 +22,6 @@
     "test:watch": "vitest",
     "prepublishOnly": "npm run build"
   },
-  "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.0.0"
-  },
   "devDependencies": {
     "@opencode-ai/plugin": "latest",
     "typescript": "^5",
