@@ -1,4 +1,8 @@
 import { buildSubstitutions, buildRegex, applySubstitutions, stripNonLatinChars, } from "./substitutions";
+/**
+ * Narrow the host's loose options record to the recognised boolean categories.
+ * Unknown keys and non-boolean values are ignored.
+ */
 function resolveConfig(options) {
     if (!options)
         return {};
@@ -20,11 +24,8 @@ function resolveConfig(options) {
  * in AI responses and file write/edit operations.
  *
  * Covered hooks:
- *  - `experimental.text.complete` : rewrites completed AI text parts
- *                                  (substitution + optional `stripNonLatin`)
- *  - `tool.execute.before`        : rewrites `write` and `edit` tool arguments
- *                                  (substitution ONLY; `apply_patch` is
- *                                  intentionally passed through verbatim)
+ *  - `experimental.text.complete` : rewrites completed AI text parts (substitution + optional `stripNonLatin`)
+ *  - `tool.execute.before`        : rewrites `write` and `edit` tool arguments (substitution only)
  */
 export const AsciiPlugin = async (_ctx, options) => {
     const config = resolveConfig(options);
@@ -44,12 +45,11 @@ export const AsciiPlugin = async (_ctx, options) => {
         return applySubstitutions(text, regex, map);
     }
     /**
-     * Substitution + optional non-Latin stripping.
+     * Substitution, then optional non-Latin stripping.
      *
-     * Used for AI text parts ONLY. Stripping is deliberately NOT applied to
-     * file-writing tool arguments: removing characters from file content is
-     * irreversible data loss, and `write`/`edit` payloads legitimately contain
-     * non-Latin text (translated docs, string tables, i18n fixtures).
+     * Used for AI text parts only: `write`/`edit` payloads legitimately contain
+     * non-Latin text (translated docs, string tables), and removing characters
+     * from them would be irreversible data loss.
      */
     function rewriteText(text) {
         const substituted = substitute(text);
@@ -63,7 +63,7 @@ export const AsciiPlugin = async (_ctx, options) => {
          * `experimental.text.complete` fires once per text part after the
          * streaming is done, giving us `output.text` to modify in place.
          *
-         * This is the ONLY hook where `stripNonLatin` is applied.
+         * The only hook where `stripNonLatin` is applied.
          */
         "experimental.text.complete": async (_input, output) => {
             if (typeof output.text === "string") {
@@ -76,18 +76,13 @@ export const AsciiPlugin = async (_ctx, options) => {
          * Substitutions only — `stripNonLatin` is never applied here.
          *
          * Tools handled:
-         *  - `write` : `args.content` (fresh content, nothing to match against)
-         *  - `edit`  : `args.newString` (NOT `oldString` -- `oldString` is matched
-         *              against the real file, `newString` is what gets written)
+         *  - `write` : `args.content`
+         *  - `edit`  : `args.newString` (NOT `oldString` -- it must match existing file content)
          *
-         * `apply_patch` is deliberately NOT handled. `args.patchText` is a
-         * machine-parsed unified diff, not prose: its `-` removal lines and its
-         * context lines must match the target file BYTE FOR BYTE or the patch is
-         * rejected. Substituting inside `patchText` rewrites those lines, so a
-         * file that legitimately contains a typographic character (an em dash,
-         * say) would no longer match and the patch would fail to apply. The
-         * payload is therefore passed through verbatim. (This is a bug fix: the
-         * plugin previously rewrote `patchText` and could break patches.)
+         * `apply_patch` is deliberately NOT handled: `args.patchText` is a
+         * machine-parsed unified diff whose removal and context lines must match
+         * the target file byte for byte, so substituting inside it makes patches
+         * fail to apply.
          */
         "tool.execute.before": async (input, output) => {
             switch (input.tool) {
