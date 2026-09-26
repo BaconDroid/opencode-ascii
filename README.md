@@ -7,7 +7,7 @@ An [OpenCode](https://opencode.ai) plugin that automatically substitutes unicode
 LLMs love to reach for typographic characters — em-dashes, curly quotes, arrows, emoji — that look great in a browser but cause friction in terminals, code, config files, and plain-text tooling. This plugin intercepts output at two points:
 
 - **AI text responses** (`experimental.text.complete`) — rewrites text parts before they are stored.
-- **File write/edit tool calls** (`tool.execute.before`) — rewrites `write`, `edit`, and `multiedit` tool arguments before execution. `apply_patch` is deliberately left alone; see [apply_patch is not rewritten](#apply_patch-is-not-rewritten).
+- **File write/edit tool calls** (`tool.execute.before`) — rewrites `write` and `edit` tool arguments before execution. `apply_patch` is deliberately left alone; see [apply_patch is not rewritten](#apply_patch-is-not-rewritten).
 
 ## Installation
 
@@ -46,6 +46,38 @@ All four substitution categories are **enabled by default**. Disable any categor
 | `arrows`      | boolean | `true`  | `→` → `->`, `←` → `<-`, `⇒` → `=>`, etc.  |
 | `math`        | boolean | `true`  | `≠` → `!=`, `≤` → `<=`, `×` → `*`, etc.   |
 | `emojis`      | boolean | `true`  | Common emoji -> `:shortcode:` labels         |
+| `stripNonLatin` | boolean | `false` | Strip non-Latin-script characters from AI text responses (never from files) |
+
+### stripNonLatin
+
+`stripNonLatin` is **opt-in** and applies to **AI text responses only**
+(`experimental.text.complete`). It is never applied to `write` or `edit` tool
+arguments, and `apply_patch` is not rewritten at all.
+
+Within an AI text part it runs as a second pass, *after* the substitutions
+above:
+
+```
+substitute (punctuation/arrows/math/emojis)  ->  strip non-Latin scripts
+```
+
+It removes every character that is not in the Unicode **Latin**, **Common**,
+or **Inherited** scripts. That keeps accented Latin text (`Café déjà vu`,
+`«naïve»`), ASCII punctuation, digits, whitespace, and combining marks
+(decomposed `é` keeps its accent), while dropping CJK, Cyrillic, Arabic,
+Hebrew, Greek, and other scripts.
+
+Files are never touched by this option. File content legitimately contains
+non-Latin text — translated documentation, string tables, i18n fixtures — and
+deleting those characters would be silent, irreversible data loss. A `write`
+or `edit` payload carrying Japanese, Russian, or Arabic text is passed
+through untouched, even with `stripNonLatin: true`; only the substitutions
+above are applied to it.
+
+Note that most pictographic emoji are `Script=Common` and survive stripping
+untouched. In the normal pipeline this does not matter: the `emojis` category
+replaces them with `:shortcode:` labels *before* stripping runs. With
+`emojis: false` and `stripNonLatin: true`, raw emoji pass through.
 
 ## Substitution reference
 
@@ -120,12 +152,13 @@ See [`src/substitutions.ts`](src/substitutions.ts) for the full list.
 
 The plugin uses two hooks:
 
-1. **`experimental.text.complete`** — fired by OpenCode after each AI text part finishes streaming. The plugin rewrites `output.text` in place before it is persisted.
+1. **`experimental.text.complete`** — fired by OpenCode after each AI text part finishes streaming. The plugin rewrites `output.text` in place before it is persisted, applying substitutions and, if enabled, the opt-in `stripNonLatin` pass.
 
 2. **`tool.execute.before`** — fired before any tool executes. The plugin rewrites:
    - `output.args.content` for the `write` tool
    - `output.args.newString` for the `edit` tool (never `oldString` — it must match existing file content exactly)
-   - each `output.args.edits[].newString` for the `multiedit` tool
+
+   This hook applies substitutions only, never `stripNonLatin`. See [`### stripNonLatin`](#stripnonlatin).
 
 ### apply_patch is not rewritten
 
@@ -148,9 +181,10 @@ a patch whose removal line is `-  console.log("hello — world");` came out of
 the plugin as `-  console.log("hello - world");`, which no longer matches the
 file, and the `+` line was mangled the same way. The patch failed to apply.
 
-This is a bug fix: the plugin previously rewrote `patchText`. `write` and
-`edit` remain fully substituted, and neither involves matching a removal line
-against existing bytes.
+This is a bug fix: the plugin previously rewrote `patchText`. If you need
+typographic characters converted inside a patch, put the already-ASCII text in
+the patch yourself — `write` and `edit` remain fully substituted, and neither
+involves matching a removal line against existing bytes.
 
 Substitution uses a single compiled regex built from all active mappings, so there is no O(n) string-replace loop per character.
 

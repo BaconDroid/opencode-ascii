@@ -4,18 +4,30 @@ import {
   buildSubstitutions,
   buildRegex,
   applySubstitutions,
+  stripNonLatinChars,
 } from "./substitutions";
 
 /**
  * Options accepted by AsciiPlugin.
  *
- * All categories default to `true` (enabled).
+ * All substitution categories default to `true` (enabled).
  * Set a category to `false` to skip substitution for it.
+ *
+ * `stripNonLatin` defaults to `false` (opt-in) and applies to AI text
+ * responses ONLY. It is never applied to file write/edit/patch arguments,
+ * because deleting characters from file content is irreversible data loss.
  *
  * @example
  * // opencode.json — disable emoji and math substitutions
  * {
  *   "plugin": [["opencode-ascii", { "emojis": false, "math": false }]]
+ * }
+ *
+ * @example
+ * // opencode.json — substitute AI text as usual, then drop non-Latin
+ * // characters from AI responses only (file writes stay untouched)
+ * {
+ *   "plugin": [["opencode-ascii", { "stripNonLatin": true }]]
  * }
  */
 export type AsciiPluginOptions = SubstitutionConfig;
@@ -28,6 +40,8 @@ function resolveConfig(options?: PluginOptions): SubstitutionConfig {
   if (typeof options["arrows"] === "boolean") config.arrows = options["arrows"];
   if (typeof options["math"] === "boolean") config.math = options["math"];
   if (typeof options["emojis"] === "boolean") config.emojis = options["emojis"];
+  if (typeof options["stripNonLatin"] === "boolean")
+    config.stripNonLatin = options["stripNonLatin"];
   return config;
 }
 
@@ -37,9 +51,10 @@ function resolveConfig(options?: PluginOptions): SubstitutionConfig {
  *
  * Covered hooks:
  *  - `experimental.text.complete` : rewrites completed AI text parts
+ *                                  (substitution + optional `stripNonLatin`)
  *  - `tool.execute.before`        : rewrites `write` and `edit` tool arguments
- *                                  (`apply_patch` is intentionally passed
- *                                  through verbatim)
+ *                                  (substitution ONLY; `apply_patch` is
+ *                                  intentionally passed through verbatim)
  */
 export const AsciiPlugin: Plugin = async (
   _ctx: PluginInput,
@@ -48,8 +63,8 @@ export const AsciiPlugin: Plugin = async (
   const config = resolveConfig(options);
   const substitutions = buildSubstitutions(config);
 
-  if (substitutions.length === 0) {
-    // All categories disabled — nothing to do.
+  if (substitutions.length === 0 && !config.stripNonLatin) {
+    // All categories disabled and no stripping — nothing to do.
     return {};
   }
 
@@ -65,20 +80,38 @@ export const AsciiPlugin: Plugin = async (
     return applySubstitutions(text, regex, map);
   }
 
+  /**
+   * Substitution + optional non-Latin stripping.
+   *
+   * Used for AI text parts ONLY. Stripping is deliberately NOT applied to
+   * file-writing tool arguments: removing characters from file content is
+   * irreversible data loss, and `write`/`edit` payloads legitimately contain
+   * non-Latin text (translated docs, string tables, i18n fixtures).
+   */
+  function rewriteText(text: string): string {
+    const substituted = substitute(text);
+    if (config.stripNonLatin) return stripNonLatinChars(substituted);
+    return substituted;
+  }
+
   return {
     /**
      * Rewrite completed AI text parts before they are stored.
      * `experimental.text.complete` fires once per text part after the
      * streaming is done, giving us `output.text` to modify in place.
+     *
+     * This is the ONLY hook where `stripNonLatin` is applied.
      */
     "experimental.text.complete": async (_input, output) => {
       if (typeof output.text === "string") {
-        output.text = substitute(output.text);
+        output.text = rewriteText(output.text);
       }
     },
 
     /**
      * Rewrite file-writing tool arguments before execution.
+     *
+     * Substitutions only — `stripNonLatin` is never applied here.
      *
      * Tools handled:
      *  - `write` : `args.content` (fresh content, nothing to match against)

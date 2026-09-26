@@ -1,4 +1,4 @@
-import { buildSubstitutions, buildRegex, applySubstitutions, } from "./substitutions";
+import { buildSubstitutions, buildRegex, applySubstitutions, stripNonLatinChars, } from "./substitutions";
 function resolveConfig(options) {
     if (!options)
         return {};
@@ -11,6 +11,8 @@ function resolveConfig(options) {
         config.math = options["math"];
     if (typeof options["emojis"] === "boolean")
         config.emojis = options["emojis"];
+    if (typeof options["stripNonLatin"] === "boolean")
+        config.stripNonLatin = options["stripNonLatin"];
     return config;
 }
 /**
@@ -19,15 +21,16 @@ function resolveConfig(options) {
  *
  * Covered hooks:
  *  - `experimental.text.complete` : rewrites completed AI text parts
+ *                                  (substitution + optional `stripNonLatin`)
  *  - `tool.execute.before`        : rewrites `write` and `edit` tool arguments
- *                                  (`apply_patch` is intentionally passed
- *                                  through verbatim)
+ *                                  (substitution ONLY; `apply_patch` is
+ *                                  intentionally passed through verbatim)
  */
 export const AsciiPlugin = async (_ctx, options) => {
     const config = resolveConfig(options);
     const substitutions = buildSubstitutions(config);
-    if (substitutions.length === 0) {
-        // All categories disabled — nothing to do.
+    if (substitutions.length === 0 && !config.stripNonLatin) {
+        // All categories disabled and no stripping — nothing to do.
         return {};
     }
     const map = new Map(substitutions);
@@ -40,19 +43,37 @@ export const AsciiPlugin = async (_ctx, options) => {
         regex.lastIndex = 0;
         return applySubstitutions(text, regex, map);
     }
+    /**
+     * Substitution + optional non-Latin stripping.
+     *
+     * Used for AI text parts ONLY. Stripping is deliberately NOT applied to
+     * file-writing tool arguments: removing characters from file content is
+     * irreversible data loss, and `write`/`edit` payloads legitimately contain
+     * non-Latin text (translated docs, string tables, i18n fixtures).
+     */
+    function rewriteText(text) {
+        const substituted = substitute(text);
+        if (config.stripNonLatin)
+            return stripNonLatinChars(substituted);
+        return substituted;
+    }
     return {
         /**
          * Rewrite completed AI text parts before they are stored.
          * `experimental.text.complete` fires once per text part after the
          * streaming is done, giving us `output.text` to modify in place.
+         *
+         * This is the ONLY hook where `stripNonLatin` is applied.
          */
         "experimental.text.complete": async (_input, output) => {
             if (typeof output.text === "string") {
-                output.text = substitute(output.text);
+                output.text = rewriteText(output.text);
             }
         },
         /**
          * Rewrite file-writing tool arguments before execution.
+         *
+         * Substitutions only — `stripNonLatin` is never applied here.
          *
          * Tools handled:
          *  - `write` : `args.content` (fresh content, nothing to match against)

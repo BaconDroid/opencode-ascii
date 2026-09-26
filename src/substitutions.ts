@@ -164,6 +164,7 @@ export type SubstitutionConfig = {
   arrows?: boolean;
   math?: boolean;
   emojis?: boolean;
+  stripNonLatin?: boolean;
 };
 
 const DEFAULT_CONFIG: Required<SubstitutionConfig> = {
@@ -171,6 +172,7 @@ const DEFAULT_CONFIG: Required<SubstitutionConfig> = {
   arrows: true,
   math: true,
   emojis: true,
+  stripNonLatin: false,
 };
 
 /**
@@ -208,4 +210,32 @@ export function applySubstitutions(
   map: Map<string, string>,
 ): string {
   return text.replace(regex, (match) => map.get(match) ?? match);
+}
+
+// The `u` flag is mandatory here: \p{...} property escapes are only
+// recognised in unicode mode. `g` lets replace() match every occurrence
+// (and String.prototype.replace resets lastIndex, so the shared regex
+// is safe to reuse across calls).
+const NON_LATIN = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/gu;
+
+/**
+ * Remove every character that does not belong to the Latin, Common, or
+ * Inherited Unicode scripts.
+ *
+ * Applied AFTER substitutions, so mapped characters are already ASCII by
+ * the time stripping runs. It keeps:
+ *  - Latin, including extended/diacritic letters such as `é`, `ç`, `ñ`
+ *  - Common (punctuation, digits, whitespace)
+ *  - Inherited (combining marks, so decomposed text such as `e` + U+0301
+ *    keeps its accent instead of being mangled)
+ *
+ * and removes CJK, Cyrillic, Arabic, Hebrew, Greek, and any other script.
+ *
+ * Note: most pictographic emoji are Script=Common and therefore SURVIVE
+ * stripping raw. In the normal pipeline they never reach this function,
+ * because the `emojis` category converts them to `:shortcode:` labels
+ * first; with `emojis: false` + `stripNonLatin: true` they pass through.
+ */
+export function stripNonLatinChars(text: string): string {
+  return text.replace(NON_LATIN, "");
 }
