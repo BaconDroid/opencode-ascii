@@ -1,4 +1,4 @@
-import type { Plugin, PluginInput, PluginOptions } from "@opencode-ai/plugin";
+import type { Hooks } from "@opencode-ai/plugin";
 import {
   type SubstitutionConfig,
   buildSubstitutions,
@@ -31,7 +31,36 @@ import {
  */
 export type AsciiPluginOptions = SubstitutionConfig;
 
-function resolveConfig(options?: PluginOptions): SubstitutionConfig {
+/** Options object as passed by the host: an open record of unknown values. */
+export type AsciiPluginInput = Record<string, unknown>;
+
+/** `output` of `experimental.text.complete`. */
+export type TextCompleteOutput = { text: string };
+
+/** `input` of `tool.execute.before`. */
+export type ToolExecuteBeforeInput = { tool: string };
+
+/** `output` of `tool.execute.before`. */
+export type ToolExecuteBeforeOutput = { args: Record<string, unknown> };
+
+/**
+ * The hooks this plugin implements, described structurally so the emitted
+ * declaration does not depend on the host's plugin package. The conformance
+ * assertion at the bottom of this file keeps them aligned with the host
+ * contract, so nothing is actually lost.
+ */
+export type AsciiPluginHooks = {
+  "experimental.text.complete"?: (
+    input: unknown,
+    output: TextCompleteOutput,
+  ) => Promise<void>;
+  "tool.execute.before"?: (
+    input: ToolExecuteBeforeInput,
+    output: ToolExecuteBeforeOutput,
+  ) => Promise<void>;
+};
+
+function resolveConfig(options?: AsciiPluginInput): SubstitutionConfig {
   if (!options) return {};
   const config: SubstitutionConfig = {};
   if (typeof options["punctuation"] === "boolean")
@@ -52,10 +81,10 @@ function resolveConfig(options?: PluginOptions): SubstitutionConfig {
  *  - `experimental.text.complete` : rewrites completed AI text parts (substitution + optional `stripNonLatin`)
  *  - `tool.execute.before`        : rewrites `write` and `edit` tool arguments (substitution only)
  */
-export const AsciiPlugin: Plugin = async (
-  _ctx: PluginInput,
-  options?: PluginOptions,
-) => {
+export const AsciiPlugin = async (
+  _ctx?: unknown,
+  options?: AsciiPluginInput,
+): Promise<AsciiPluginHooks> => {
   const config = resolveConfig(options);
   const substitutions = buildSubstitutions(config);
 
@@ -140,3 +169,14 @@ export default {
   id: "opencode-ascii",
   server: AsciiPlugin,
 };
+
+/**
+ * Compile-time guarantee that the self-contained surface above still satisfies
+ * the host contract. Unexported, so `Hooks` never reaches the declaration file
+ * and no runtime code is emitted -- but the link to `@opencode-ai/plugin` is
+ * still checked on every build.
+ */
+type Assert<T extends true> = T;
+type _HooksConformance = Assert<
+  AsciiPluginHooks extends Pick<Hooks, keyof AsciiPluginHooks> ? true : false
+>;
