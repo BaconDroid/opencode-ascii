@@ -1,4 +1,3 @@
-import type { Plugin } from "@opencode-ai/plugin";
 import { type SubstitutionConfig } from "./substitutions";
 /**
  * Options accepted by AsciiPlugin.
@@ -23,6 +22,30 @@ import { type SubstitutionConfig } from "./substitutions";
  * }
  */
 export type AsciiPluginOptions = SubstitutionConfig;
+/** Options object as passed by the host: an open record of unknown values. */
+export type AsciiPluginInput = Record<string, unknown>;
+/** `output` of `experimental.text.complete`. */
+export type TextCompleteOutput = {
+    text: string;
+};
+/** `input` of `tool.execute.before`. */
+export type ToolExecuteBeforeInput = {
+    tool: string;
+};
+/** `output` of `tool.execute.before`. */
+export type ToolExecuteBeforeOutput = {
+    args: Record<string, unknown>;
+};
+/**
+ * The hooks this plugin implements, described structurally so the emitted
+ * declaration does not depend on the host's plugin package. The conformance
+ * assertion at the bottom of this file keeps them aligned with the host
+ * contract, so nothing is actually lost.
+ */
+export type AsciiPluginHooks = {
+    "experimental.text.complete"?: (input: unknown, output: TextCompleteOutput) => Promise<void>;
+    "tool.execute.before"?: (input: ToolExecuteBeforeInput, output: ToolExecuteBeforeOutput) => Promise<void>;
+};
 /**
  * AsciiPlugin — substitutes unicode characters with ASCII equivalents
  * in AI responses and file write/edit operations.
@@ -31,9 +54,9 @@ export type AsciiPluginOptions = SubstitutionConfig;
  *  - `experimental.text.complete` : rewrites completed AI text parts (substitution + optional `stripNonLatin`)
  *  - `tool.execute.before`        : rewrites `write` and `edit` tool arguments (substitution only)
  */
-export declare const AsciiPlugin: Plugin;
+export declare const AsciiPlugin: (_ctx?: unknown, options?: AsciiPluginInput) => Promise<AsciiPluginHooks>;
 declare const _default: {
     id: string;
-    server: Plugin;
+    server: (_ctx?: unknown, options?: AsciiPluginInput) => Promise<AsciiPluginHooks>;
 };
 export default _default;
