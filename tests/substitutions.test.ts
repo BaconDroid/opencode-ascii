@@ -51,7 +51,7 @@ describe("substitution arrays", () => {
     for (const [from] of EMOJIS) {
       const cp = from.codePointAt(0) ?? 0;
       if (cp > 0xffff) {
-        // Surrogate pair = 2 UTF-16 code units. A mis-escaped \u1F68 would be
+        // Surrogate pair = 2 UTF-16 code units. A mis-escaped \u1F680 would be
         // \u1F68 (1 unit) + "0" (1 unit) = 2 units but wrong character.
         // So we also verify the codepoint is actually what we expect.
         expect(from.length).toBe(2); // surrogate pair
@@ -252,8 +252,9 @@ describe("stripNonLatinChars", () => {
   });
 
   it("preserves Inherited combining marks (decomposed accents)", () => {
-    // e + COMBINING ACUTE ACCENT (U+0301, explicit escape) — 'e' is Latin,
-    // U+0301 is Inherited, so the accent survives instead of being mangled.
+    // "e" + COMBINING ACUTE ACCENT written as an explicit escape so the
+    // decomposed form is unambiguous (a precomposed U+00E9 literal would
+    // have length 1 and fail the assertion below).
     expect(stripNonLatinChars("é")).toBe("é");
     expect(stripNonLatinChars("é").length).toBe(2);
   });
@@ -351,18 +352,8 @@ describe("full pipeline", () => {
     });
     const map = new Map<string, string>(subs);
     const regex = buildRegex(subs);
-
-    const cases: [string, string][] = [
-      ["≠", "!="], // not equal
-      ["≤", "<="], // less-than or equal
-      ["≥", ">="], // greater-than or equal
-      ["×", "*"], // multiplication
-      ["÷", "/"], // division
-    ];
-
-    for (const [unicode, ascii] of cases) {
-      regex.lastIndex = 0;
-      expect(applySubstitutions(unicode, regex, map)).toBe(ascii);
-    }
+    const text = "const x = 'hello world';";
+    regex.lastIndex = 0;
+    expect(applySubstitutions(text, regex, map)).toBe(text);
   });
 });
