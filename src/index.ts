@@ -60,6 +60,10 @@ export type AsciiPluginHooks = {
   ) => Promise<void>;
 };
 
+/**
+ * Narrow the host's loose options record to the recognised boolean categories.
+ * Unknown keys and non-boolean values are ignored.
+ */
 function resolveConfig(options?: AsciiPluginInput): SubstitutionConfig {
   if (!options) return {};
   const config: SubstitutionConfig = {};
