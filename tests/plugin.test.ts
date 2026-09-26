@@ -191,6 +191,22 @@ describe("tool.execute.before: apply_patch", () => {
     expect(output.args.patchText).toBe(patchText);
     expect(output.args.patchText).toContain("--- a/i18n/日本語.ts");
   });
+
+  it("still leaves args.patchText unchanged with stripNonLatin: true", async () => {
+    // Stripping must not reach patch payloads either: the target path and the
+    // removal/context lines have to match the file exactly.
+    const hooks = await makeHooks({ stripNonLatin: true });
+    const patchText = [
+      "--- a/doc.md",
+      "+++ b/doc.md",
+      "@@ -1 +1 @@",
+      "-新内容",
+      "+新内容 → value",
+    ].join("\n");
+    const output = { args: { patchText } };
+    await hooks["tool.execute.before"]?.(baseInput, output);
+    expect(output.args.patchText).toBe(patchText);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -250,5 +266,110 @@ describe("plugin options", () => {
     );
     // Only punctuation substituted; arrows and math left alone
     expect(output.text).toBe("dash - arrow → not-equal ≠");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Plugin options -- stripNonLatin (opt-in, AI TEXT RESPONSES ONLY, applied
+// AFTER substitution; never applied to file write/edit/patch arguments)
+// ---------------------------------------------------------------------------
+
+describe("stripNonLatin option", () => {
+  it("strips non-Latin scripts from AI text output", async () => {
+    const hooks = await makeHooks({
+      punctuation: false,
+      arrows: false,
+      math: false,
+      emojis: false,
+      stripNonLatin: true,
+    });
+    const output = { text: "hello 世界 world Привет" };
+    await hooks["experimental.text.complete"]?.(
+      { sessionID: "s1", messageID: "m1", partID: "p1" },
+      output,
+    );
+    expect(output.text).toBe("hello  world ");
+  });
+
+  it("registers hooks when only stripNonLatin is enabled", async () => {
+    const hooks = await makeHooks({ stripNonLatin: true });
+    expect(hooks["experimental.text.complete"]).toBeDefined();
+    expect(hooks["tool.execute.before"]).toBeDefined();
+  });
+
+  it("applies substitution before stripping (emoji become :shortcode:)", async () => {
+    const hooks = await makeHooks({ stripNonLatin: true });
+    const output = { text: "launch 🚀 to 世界" };
+    await hooks["experimental.text.complete"]?.(
+      { sessionID: "s1", messageID: "m1", partID: "p1" },
+      output,
+    );
+    expect(output.text).toBe("launch :rocket: to ");
+  });
+
+  it("leaves non-Latin text untouched by default (backward compatible)", async () => {
+    const hooks = await makeHooks();
+    const output = { text: "hello 世界 world" };
+    await hooks["experimental.text.complete"]?.(
+      { sessionID: "s1", messageID: "m1", partID: "p1" },
+      output,
+    );
+    expect(output.text).toBe("hello 世界 world");
+  });
+
+  it("does NOT strip non-Latin scripts from write tool content (text-only scope)", async () => {
+    // stripNonLatin is deliberately scoped to AI text responses. Stripping
+    // file content would be irreversible data loss, so write args keep
+    // their non-Latin characters even when the option is enabled.
+    const hooks = await makeHooks({
+      punctuation: false,
+      arrows: false,
+      math: false,
+      emojis: false,
+      stripNonLatin: true,
+    });
+    const baseInput = { tool: "write", sessionID: "s1", callID: "c1" };
+    const output = { args: { filePath: "/tmp/a.txt", content: "ok 日本語 ok" } };
+    await hooks["tool.execute.before"]?.(baseInput, output);
+    expect(output.args.content).toBe("ok 日本語 ok");
+    expect(output.args.filePath).toBe("/tmp/a.txt");
+  });
+
+  it("still substitutes punctuation in write content while stripping is enabled", async () => {
+    const hooks = await makeHooks({ stripNonLatin: true });
+    const baseInput = { tool: "write", sessionID: "s1", callID: "c1" };
+    const output = {
+      args: { filePath: "/tmp/b.txt", content: "dash — 日本語" },
+    };
+    await hooks["tool.execute.before"]?.(baseInput, output);
+    // Em dash substituted, CJK preserved.
+    expect(output.args.content).toBe("dash - 日本語");
+  });
+
+  it("does NOT strip non-Latin scripts from edit args.newString", async () => {
+    const hooks = await makeHooks({ stripNonLatin: true });
+    const baseInput = { tool: "edit", sessionID: "s1", callID: "c1" };
+    const output = {
+      args: {
+        filePath: "/tmp/c.txt",
+        oldString: "старый",
+        newString: "новый — текст",
+      },
+    };
+    await hooks["tool.execute.before"]?.(baseInput, output);
+    expect(output.args.newString).toBe("новый - текст");
+    expect(output.args.oldString).toBe("старый");
+  });
+
+  it("returns empty hooks when all categories disabled and stripNonLatin is off", async () => {
+    const hooks = await makeHooks({
+      punctuation: false,
+      arrows: false,
+      math: false,
+      emojis: false,
+      stripNonLatin: false,
+    });
+    expect(hooks["experimental.text.complete"]).toBeUndefined();
+    expect(hooks["tool.execute.before"]).toBeUndefined();
   });
 });

@@ -26,8 +26,10 @@ export const PUNCTUATION = [
     ["\u203A", "'"], // single right-pointing angle quotation mark (›)
     // Miscellaneous punctuation
     ["\u2500", "-"], // box drawings light horizontal (─)
+    ["\u2502", "|"], // box drawings light vertical (│)
     ["\u2022", "-"], // bullet (-)
     ["\u2023", ">"], // triangular bullet (‣)
+    ["\u25BA", ">"], // black right-pointing pointer (►)
     ["\u2043", "-"], // hyphen bullet (⁃)
     ["\u00B7", "."], // middle dot (·)
     ["\u2027", "."], // hyphenation point (‧)
@@ -52,6 +54,8 @@ export const ARROWS = [
     ["\u2B05", "<-"], // leftwards black arrow (⬅)
     ["\u2B06", "^"], // upwards black arrow (⬆)
     ["\u2B07", "v"], // downwards black arrow (⬇)
+    ["\u25BC", "v"], // black down-pointing triangle (▼)
+    ["\u25B2", "^"], // black up-pointing triangle (▲)
 ];
 export const MATH = [
     ["\u2260", "!="], // not equal to (≠)
@@ -153,6 +157,7 @@ const DEFAULT_CONFIG = {
     arrows: true,
     math: true,
     emojis: true,
+    stripNonLatin: false,
 };
 /**
  * Build a combined substitution map from enabled categories.
@@ -185,4 +190,30 @@ export function buildRegex(substitutions) {
  */
 export function applySubstitutions(text, regex, map) {
     return text.replace(regex, (match) => map.get(match) ?? match);
+}
+// The `u` flag is mandatory here: \p{...} property escapes are only
+// recognised in unicode mode. `g` lets replace() match every occurrence
+// (and String.prototype.replace resets lastIndex, so the shared regex
+// is safe to reuse across calls).
+const NON_LATIN = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/gu;
+/**
+ * Remove every character that does not belong to the Latin, Common, or
+ * Inherited Unicode scripts.
+ *
+ * Applied AFTER substitutions, so mapped characters are already ASCII by
+ * the time stripping runs. It keeps:
+ *  - Latin, including extended/diacritic letters such as `é`, `ç`, `ñ`
+ *  - Common (punctuation, digits, whitespace)
+ *  - Inherited (combining marks, so decomposed text such as `e` + U+0301
+ *    keeps its accent instead of being mangled)
+ *
+ * and removes CJK, Cyrillic, Arabic, Hebrew, Greek, and any other script.
+ *
+ * Note: most pictographic emoji are Script=Common and therefore SURVIVE
+ * stripping raw. In the normal pipeline they never reach this function,
+ * because the `emojis` category converts them to `:shortcode:` labels
+ * first; with `emojis: false` + `stripNonLatin: true` they pass through.
+ */
+export function stripNonLatinChars(text) {
+    return text.replace(NON_LATIN, "");
 }
