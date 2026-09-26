@@ -7,6 +7,7 @@ import {
   buildSubstitutions,
   buildRegex,
   applySubstitutions,
+  stripNonLatinChars,
 } from "../src/substitutions";
 
 // ---------------------------------------------------------------------------
@@ -223,6 +224,56 @@ describe("applySubstitutions", () => {
       regex.lastIndex = 0;
       expect(applySubstitutions("a — b", regex, map)).toBe("a -- b");
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// stripNonLatinChars
+// ---------------------------------------------------------------------------
+
+describe("stripNonLatinChars", () => {
+  it("keeps Latin, Common punctuation, and digits", () => {
+    expect(stripNonLatinChars("Café déjà vu — «naïve» 123")).toBe(
+      "Café déjà vu — «naïve» 123",
+    );
+  });
+
+  it("removes CJK", () => {
+    expect(stripNonLatinChars("你好世界")).toBe("");
+    expect(stripNonLatinChars("hello 世界 world")).toBe("hello  world");
+  });
+
+  it("removes Cyrillic", () => {
+    expect(stripNonLatinChars("Привет")).toBe("");
+  });
+
+  it("removes Arabic", () => {
+    expect(stripNonLatinChars("مرحبا")).toBe("");
+  });
+
+  it("preserves Inherited combining marks (decomposed accents)", () => {
+    // "e" + COMBINING ACUTE ACCENT written as an explicit escape so the
+    // decomposed form is unambiguous (a precomposed U+00E9 literal would
+    // have length 1 and fail the assertion below).
+    expect(stripNonLatinChars("é")).toBe("é");
+    expect(stripNonLatinChars("é").length).toBe(2);
+  });
+
+  it("leaves raw emoji untouched (handled by emojis category first)", () => {
+    // Pictographic emoji are Script=Common, so they survive stripping. In the
+    // real pipeline the `emojis` category rewrites them to :shortcode: before
+    // stripNonLatinChars ever runs.
+    expect(stripNonLatinChars("launch 🚀 now")).toBe("launch 🚀 now");
+  });
+
+  it("handles empty string and pure ASCII as no-ops", () => {
+    expect(stripNonLatinChars("")).toBe("");
+    expect(stripNonLatinChars("const x = 1; // fine")).toBe("const x = 1; // fine");
+  });
+
+  it("is idempotent when applied to its own output", () => {
+    const once = stripNonLatinChars("a ≠ 你 b Привет");
+    expect(stripNonLatinChars(once)).toBe(once);
   });
 });
 

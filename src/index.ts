@@ -4,18 +4,27 @@ import {
   buildSubstitutions,
   buildRegex,
   applySubstitutions,
+  stripNonLatinChars,
 } from "./substitutions";
 
 /**
  * Options accepted by AsciiPlugin.
  *
- * All categories default to `true` (enabled).
+ * All substitution categories default to `true` (enabled).
  * Set a category to `false` to skip substitution for it.
+ * `stripNonLatin` defaults to `false` (opt-in) because it is destructive
+ * for content that legitimately contains non-Latin text.
  *
  * @example
  * // opencode.json — disable emoji and math substitutions
  * {
  *   "plugin": [["opencode-ascii", { "emojis": false, "math": false }]]
+ * }
+ *
+ * @example
+ * // opencode.json — substitute as usual, then drop every non-Latin character
+ * {
+ *   "plugin": [["opencode-ascii", { "stripNonLatin": true }]]
  * }
  */
 export type AsciiPluginOptions = SubstitutionConfig;
@@ -28,6 +37,8 @@ function resolveConfig(options?: PluginOptions): SubstitutionConfig {
   if (typeof options["arrows"] === "boolean") config.arrows = options["arrows"];
   if (typeof options["math"] === "boolean") config.math = options["math"];
   if (typeof options["emojis"] === "boolean") config.emojis = options["emojis"];
+  if (typeof options["stripNonLatin"] === "boolean")
+    config.stripNonLatin = options["stripNonLatin"];
   return config;
 }
 
@@ -46,8 +57,8 @@ export const AsciiPlugin: Plugin = async (
   const config = resolveConfig(options);
   const substitutions = buildSubstitutions(config);
 
-  if (substitutions.length === 0) {
-    // All categories disabled — nothing to do.
+  if (substitutions.length === 0 && !config.stripNonLatin) {
+    // All categories disabled and no stripping — nothing to do.
     return {};
   }
 
@@ -60,7 +71,11 @@ export const AsciiPlugin: Plugin = async (
   function substitute(text: string): string {
     // Reset the regex state (stateful with /g flag)
     regex.lastIndex = 0;
-    return applySubstitutions(text, regex, map);
+    const substituted = applySubstitutions(text, regex, map);
+    // Stripping runs after substitution so mapped characters are already
+    // ASCII, and so `:shortcode:` labels survive untouched.
+    if (config.stripNonLatin) return stripNonLatinChars(substituted);
+    return substituted;
   }
 
   return {

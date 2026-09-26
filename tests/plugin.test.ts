@@ -222,3 +222,78 @@ describe("plugin options", () => {
     expect(output.text).toBe("dash - arrow → not-equal ≠");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Plugin options -- stripNonLatin (opt-in, applied AFTER substitution)
+// ---------------------------------------------------------------------------
+
+describe("stripNonLatin option", () => {
+  it("strips non-Latin scripts from AI text output", async () => {
+    const hooks = await makeHooks({
+      punctuation: false,
+      arrows: false,
+      math: false,
+      emojis: false,
+      stripNonLatin: true,
+    });
+    const output = { text: "hello 世界 world Привет" };
+    await hooks["experimental.text.complete"]?.(
+      { sessionID: "s1", messageID: "m1", partID: "p1" },
+      output,
+    );
+    expect(output.text).toBe("hello  world ");
+  });
+
+  it("registers hooks when only stripNonLatin is enabled", async () => {
+    const hooks = await makeHooks({ stripNonLatin: true });
+    expect(hooks["experimental.text.complete"]).toBeDefined();
+    expect(hooks["tool.execute.before"]).toBeDefined();
+  });
+
+  it("applies substitution before stripping (emoji become :shortcode:)", async () => {
+    const hooks = await makeHooks({ stripNonLatin: true });
+    const output = { text: "launch 🚀 to 世界" };
+    await hooks["experimental.text.complete"]?.(
+      { sessionID: "s1", messageID: "m1", partID: "p1" },
+      output,
+    );
+    expect(output.text).toBe("launch :rocket: to ");
+  });
+
+  it("leaves non-Latin text untouched by default (backward compatible)", async () => {
+    const hooks = await makeHooks();
+    const output = { text: "hello 世界 world" };
+    await hooks["experimental.text.complete"]?.(
+      { sessionID: "s1", messageID: "m1", partID: "p1" },
+      output,
+    );
+    expect(output.text).toBe("hello 世界 world");
+  });
+
+  it("strips non-Latin scripts from write tool content", async () => {
+    const hooks = await makeHooks({
+      punctuation: false,
+      arrows: false,
+      math: false,
+      emojis: false,
+      stripNonLatin: true,
+    });
+    const baseInput = { tool: "write", sessionID: "s1", callID: "c1" };
+    const output = { args: { filePath: "/tmp/a.txt", content: "ok 日本語 ok" } };
+    await hooks["tool.execute.before"]?.(baseInput, output);
+    expect(output.args.content).toBe("ok  ok");
+    expect(output.args.filePath).toBe("/tmp/a.txt");
+  });
+
+  it("returns empty hooks when all categories disabled and stripNonLatin is off", async () => {
+    const hooks = await makeHooks({
+      punctuation: false,
+      arrows: false,
+      math: false,
+      emojis: false,
+      stripNonLatin: false,
+    });
+    expect(hooks["experimental.text.complete"]).toBeUndefined();
+    expect(hooks["tool.execute.before"]).toBeUndefined();
+  });
+});
