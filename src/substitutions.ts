@@ -30,7 +30,7 @@ export const PUNCTUATION: Array<[string, string]> = [
   // Miscellaneous punctuation
   ["\u2500", "-"], // box drawings light horizontal (─)
   ["\u2502", "|"], // box drawings light vertical (│)
-  ["\u2022", "-"], // bullet (-)
+  ["\u2022", "-"], // bullet (•)
   ["\u2023", ">"], // triangular bullet (‣)
   ["\u25BA", ">"], // black right-pointing pointer (►)
   ["\u2043", "-"], // hyphen bullet (⁃)
@@ -93,70 +93,70 @@ export const MATH: Array<[string, string]> = [
 
 export const EMOJIS: Array<[string, string]> = [
   // Checkmarks / cross marks
-  ["\u2713", ":white_check_mark:"], // check mark ([x])
-  ["\u2714", ":white_check_mark:"], // heavy check mark ([x])
-  ["\u2611", ":ballot_box_with_check:"], // ballot box with check ([x])
-  ["\u2705", ":white_check_mark:"], // white heavy check mark ([done])
-  ["\u2717", ":x:"], // ballot x ([!])
-  ["\u2718", ":x:"], // heavy ballot x ([!])
-  ["\u274C", ":x:"], // cross mark ([!])
-  ["\u274E", ":x:"], // cross mark button ([!])
+  ["\u2713", ":white_check_mark:"], // check mark (✓)
+  ["\u2714", ":white_check_mark:"], // heavy check mark (✔)
+  ["\u2611", ":ballot_box_with_check:"], // ballot box with check (☑)
+  ["\u2705", ":white_check_mark:"], // white heavy check mark (✅)
+  ["\u2717", ":x:"], // ballot x (✗)
+  ["\u2718", ":x:"], // heavy ballot x (✘)
+  ["\u274C", ":x:"], // cross mark (❌)
+  ["\u274E", ":x:"], // cross mark button (❎)
   // Warnings / alerts
-  ["\u26A0", ":warning:"], // warning sign ([!])
-  ["\u2757", ":exclamation:"], // heavy exclamation mark ornament ([!])
-  ["\u2755", ":grey_exclamation:"], // white exclamation mark ornament ([!])
-  ["\u26A1", ":zap:"], // high voltage sign ([!])
+  ["\u26A0", ":warning:"], // warning sign (⚠)
+  ["\u2757", ":exclamation:"], // heavy exclamation mark ornament (❗)
+  ["\u2755", ":grey_exclamation:"], // white exclamation mark ornament (❕)
+  ["\u26A1", ":zap:"], // high voltage sign (⚡)
   // Info / ideas
-  ["\u2139", ":information_source:"], // information source ([i])
-  ["\u{1F4A1}", ":bulb:"], // light bulb ([i])
+  ["\u2139", ":information_source:"], // information source (ℹ)
+  ["\u{1F4A1}", ":bulb:"], // light bulb (💡)
   // Stars / rating
-  ["\u2B50", ":star:"], // white medium star ([*])
-  ["\u{1F31F}", ":star2:"], // glowing star ([*])
-  ["\u2605", ":star:"], // black star ([*])
-  ["\u2606", ":star:"], // white star ([*])
+  ["\u2B50", ":star:"], // white medium star (⭐)
+  ["\u{1F31F}", ":star2:"], // glowing star (🌟)
+  ["\u2605", ":star:"], // black star (★)
+  ["\u2606", ":star:"], // white star (☆)
   // Common emoji sequences
-  ["\u{1F525}", ":fire:"], // fire ([fire])
-  ["\u{1F680}", ":rocket:"], // rocket ([>>])
-  ["\u{1F41B}", ":bug:"], // bug ([bug])
-  ["\u{1F41E}", ":beetle:"], // lady beetle ([bug])
-  ["\u{1F4DD}", ":memo:"], // memo ([note])
-  ["\u270F", ":pencil2:"], // pencil ([note])
-  ["\u{1F512}", ":lock:"], // lock ([lock])
-  ["\u{1F513}", ":unlock:"], // open lock ([open])
-  ["\u{1F4C1}", ":file_folder:"], // file folder ([dir])
-  ["\u{1F4C2}", ":open_file_folder:"], // open file folder ([dir])
-  ["\u{1F4C4}", ":page_facing_up:"], // page facing up ([file])
-  ["\u{1F4C3}", ":page_with_curl:"], // page with curl ([file])
-  ["\u{1F44D}", ":+1:"], // thumbs up ([+1])
-  ["\u{1F44E}", ":-1:"], // thumbs down ([-1])
-  ["\u{1F4AC}", ":speech_balloon:"], // speech balloon ([comment])
-  ["\u{1F4E6}", ":package:"], // package ([pkg])
-  ["\u{1F517}", ":link:"], // link ([link])
-  ["\u{1F6A7}", ":construction:"], // construction sign ([wip])
-  ["\u2699", ":gear:"], // gear ([config])
-  ["\u{1F527}", ":wrench:"], // wrench ([fix])
-  ["\u{1F5D1}", ":wastebasket:"], // wastebasket ([del])
-  ["\u{1F310}", ":globe_with_meridians:"], // globe with meridians ([web])
-  ["\u{1F4BB}", ":computer:"], // personal computer ([pc])
-  ["\u{1F4F1}", ":iphone:"], // mobile phone ([phone])
-  ["\u{1F4E7}", ":e-mail:"], // e-mail ([email])
-  ["\u{1F4CA}", ":bar_chart:"], // bar chart ([chart])
-  ["\u{1F4C8}", ":chart_with_upwards_trend:"], // chart with upwards trend ([up])
-  ["\u{1F4C9}", ":chart_with_downwards_trend:"], // chart with downwards trend ([down])
-  ["\u2764", ":heart:"], // heavy black heart ([<3])
-  ["\u{1F4AF}", ":100:"], // hundred points ([100])
-  ["\u{1F44B}", ":wave:"], // waving hand ([wave])
-  ["\u{1F91D}", ":handshake:"], // handshake ([deal])
-  ["\u{1F4AA}", ":muscle:"], // flexed biceps ([strong])
-  ["\u{1F914}", ":thinking:"], // thinking face ([?])
-  ["\u{1F644}", ":roll_eyes:"], // face with rolling eyes ([eye-roll])
-  ["\u{1F4A5}", ":boom:"], // collision ([boom])
-  ["\u{1F389}", ":tada:"], // party popper ([party])
-  ["\u{1F3C6}", ":trophy:"], // trophy ([trophy])
-  ["\u{1F4B0}", ":moneybag:"], // money bag ([money])
-  ["\u231B", ":hourglass:"], // hourglass ([wait])
-  ["\u23F3", ":hourglass_flowing_sand:"], // hourglass with flowing sand ([wait])
-  ["\u{1F504}", ":arrows_counterclockwise:"], // counterclockwise arrows button ([refresh])
+  ["\u{1F525}", ":fire:"], // fire (🔥)
+  ["\u{1F680}", ":rocket:"], // rocket (🚀)
+  ["\u{1F41B}", ":bug:"], // bug (🐛)
+  ["\u{1F41E}", ":beetle:"], // lady beetle (🐞)
+  ["\u{1F4DD}", ":memo:"], // memo (📝)
+  ["\u270F", ":pencil2:"], // pencil (✏)
+  ["\u{1F512}", ":lock:"], // lock (🔒)
+  ["\u{1F513}", ":unlock:"], // open lock (🔓)
+  ["\u{1F4C1}", ":file_folder:"], // file folder (📁)
+  ["\u{1F4C2}", ":open_file_folder:"], // open file folder (📂)
+  ["\u{1F4C4}", ":page_facing_up:"], // page facing up (📄)
+  ["\u{1F4C3}", ":page_with_curl:"], // page with curl (📃)
+  ["\u{1F44D}", ":+1:"], // thumbs up (👍)
+  ["\u{1F44E}", ":-1:"], // thumbs down (👎)
+  ["\u{1F4AC}", ":speech_balloon:"], // speech balloon (💬)
+  ["\u{1F4E6}", ":package:"], // package (📦)
+  ["\u{1F517}", ":link:"], // link (🔗)
+  ["\u{1F6A7}", ":construction:"], // construction sign (🚧)
+  ["\u2699", ":gear:"], // gear (⚙)
+  ["\u{1F527}", ":wrench:"], // wrench (🔧)
+  ["\u{1F5D1}", ":wastebasket:"], // wastebasket (🗑)
+  ["\u{1F310}", ":globe_with_meridians:"], // globe with meridians (🌐)
+  ["\u{1F4BB}", ":computer:"], // personal computer (💻)
+  ["\u{1F4F1}", ":iphone:"], // mobile phone (📱)
+  ["\u{1F4E7}", ":e-mail:"], // e-mail (📧)
+  ["\u{1F4CA}", ":bar_chart:"], // bar chart (📊)
+  ["\u{1F4C8}", ":chart_with_upwards_trend:"], // chart with upwards trend (📈)
+  ["\u{1F4C9}", ":chart_with_downwards_trend:"], // chart with downwards trend (📉)
+  ["\u2764", ":heart:"], // heavy black heart (❤)
+  ["\u{1F4AF}", ":100:"], // hundred points (💯)
+  ["\u{1F44B}", ":wave:"], // waving hand (👋)
+  ["\u{1F91D}", ":handshake:"], // handshake (🤝)
+  ["\u{1F4AA}", ":muscle:"], // flexed biceps (💪)
+  ["\u{1F914}", ":thinking:"], // thinking face (🤔)
+  ["\u{1F644}", ":roll_eyes:"], // face with rolling eyes (🙄)
+  ["\u{1F4A5}", ":boom:"], // collision (💥)
+  ["\u{1F389}", ":tada:"], // party popper (🎉)
+  ["\u{1F3C6}", ":trophy:"], // trophy (🏆)
+  ["\u{1F4B0}", ":moneybag:"], // money bag (💰)
+  ["\u231B", ":hourglass:"], // hourglass (⌛)
+  ["\u23F3", ":hourglass_flowing_sand:"], // hourglass with flowing sand (⏳)
+  ["\u{1F504}", ":arrows_counterclockwise:"], // counterclockwise arrows button (🔄)
 ];
 
 export type SubstitutionConfig = {
@@ -164,6 +164,7 @@ export type SubstitutionConfig = {
   arrows?: boolean;
   math?: boolean;
   emojis?: boolean;
+  stripNonLatin?: boolean;
 };
 
 const DEFAULT_CONFIG: Required<SubstitutionConfig> = {
@@ -171,6 +172,7 @@ const DEFAULT_CONFIG: Required<SubstitutionConfig> = {
   arrows: true,
   math: true,
   emojis: true,
+  stripNonLatin: false,
 };
 
 /**
@@ -208,4 +210,32 @@ export function applySubstitutions(
   map: Map<string, string>,
 ): string {
   return text.replace(regex, (match) => map.get(match) ?? match);
+}
+
+// The `u` flag is mandatory here: \p{...} property escapes are only
+// recognised in unicode mode. `g` lets replace() match every occurrence
+// (and String.prototype.replace resets lastIndex, so the shared regex
+// is safe to reuse across calls).
+const NON_LATIN = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/gu;
+
+/**
+ * Remove every character that does not belong to the Latin, Common, or
+ * Inherited Unicode scripts.
+ *
+ * Applied AFTER substitutions, so mapped characters are already ASCII by
+ * the time stripping runs. It keeps:
+ *  - Latin, including extended/diacritic letters such as `é`, `ç`, `ñ`
+ *  - Common (punctuation, digits, whitespace)
+ *  - Inherited (combining marks, so decomposed text such as `e` + U+0301
+ *    keeps its accent instead of being mangled)
+ *
+ * and removes CJK, Cyrillic, Arabic, Hebrew, Greek, and any other script.
+ *
+ * Note: most pictographic emoji are Script=Common and therefore SURVIVE
+ * stripping raw. In the normal pipeline they never reach this function,
+ * because the `emojis` category converts them to `:shortcode:` labels
+ * first; with `emojis: false` + `stripNonLatin: true` they pass through.
+ */
+export function stripNonLatinChars(text: string): string {
+  return text.replace(NON_LATIN, "");
 }

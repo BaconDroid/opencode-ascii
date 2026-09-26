@@ -7,6 +7,7 @@ import {
   buildSubstitutions,
   buildRegex,
   applySubstitutions,
+  stripNonLatinChars,
 } from "../src/substitutions";
 
 // ---------------------------------------------------------------------------
@@ -50,7 +51,7 @@ describe("substitution arrays", () => {
     for (const [from] of EMOJIS) {
       const cp = from.codePointAt(0) ?? 0;
       if (cp > 0xffff) {
-        // Surrogate pair = 2 UTF-16 code units. A mis-escaped \u1F680 would be
+        // Surrogate pair = 2 UTF-16 code units. A mis-escaped \u1F68 would be
         // \u1F68 (1 unit) + "0" (1 unit) = 2 units but wrong character.
         // So we also verify the codepoint is actually what we expect.
         expect(from.length).toBe(2); // surrogate pair
@@ -223,6 +224,55 @@ describe("applySubstitutions", () => {
       regex.lastIndex = 0;
       expect(applySubstitutions("a — b", regex, map)).toBe("a -- b");
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// stripNonLatinChars
+// ---------------------------------------------------------------------------
+
+describe("stripNonLatinChars", () => {
+  it("keeps Latin, Common punctuation, and digits", () => {
+    expect(stripNonLatinChars("Café déjà vu — «naïve» 123")).toBe(
+      "Café déjà vu — «naïve» 123",
+    );
+  });
+
+  it("removes CJK", () => {
+    expect(stripNonLatinChars("你好世界")).toBe("");
+    expect(stripNonLatinChars("hello 世界 world")).toBe("hello  world");
+  });
+
+  it("removes Cyrillic", () => {
+    expect(stripNonLatinChars("Привет")).toBe("");
+  });
+
+  it("removes Arabic", () => {
+    expect(stripNonLatinChars("مرحبا")).toBe("");
+  });
+
+  it("preserves Inherited combining marks (decomposed accents)", () => {
+    // e + COMBINING ACUTE ACCENT (U+0301, explicit escape) — 'e' is Latin,
+    // U+0301 is Inherited, so the accent survives instead of being mangled.
+    expect(stripNonLatinChars("é")).toBe("é");
+    expect(stripNonLatinChars("é").length).toBe(2);
+  });
+
+  it("leaves raw emoji untouched (handled by emojis category first)", () => {
+    // Pictographic emoji are Script=Common, so they survive stripping. In the
+    // real pipeline the `emojis` category rewrites them to :shortcode: before
+    // stripNonLatinChars ever runs.
+    expect(stripNonLatinChars("launch 🚀 now")).toBe("launch 🚀 now");
+  });
+
+  it("handles empty string and pure ASCII as no-ops", () => {
+    expect(stripNonLatinChars("")).toBe("");
+    expect(stripNonLatinChars("const x = 1; // fine")).toBe("const x = 1; // fine");
+  });
+
+  it("is idempotent when applied to its own output", () => {
+    const once = stripNonLatinChars("a ≠ 你 b Привет");
+    expect(stripNonLatinChars(once)).toBe(once);
   });
 });
 

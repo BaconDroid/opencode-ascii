@@ -46,6 +46,33 @@ All four substitution categories are **enabled by default**. Disable any categor
 | `arrows`      | boolean | `true`  | `→` → `->`, `←` → `<-`, `⇒` → `=>`, etc.  |
 | `math`        | boolean | `true`  | `≠` → `!=`, `≤` → `<=`, `×` → `*`, etc.   |
 | `emojis`      | boolean | `true`  | Common emoji -> `:shortcode:` labels         |
+| `stripNonLatin` | boolean | `false` | Strip all non-Latin-script characters after substitution |
+
+### stripNonLatin
+
+`stripNonLatin` is **opt-in** and runs as a second pass, *after* the
+substitutions above:
+
+```
+substitute (punctuation/arrows/math/emojis)  ->  strip non-Latin scripts
+```
+
+It removes every character that is not in the Unicode **Latin**, **Common**,
+or **Inherited** scripts. That keeps accented Latin text (`Café déjà vu`,
+`«naïve»`), ASCII punctuation, digits, whitespace, and combining marks
+(decomposed `é` keeps its accent), while dropping CJK, Cyrillic, Arabic,
+Hebrew, Greek, and other scripts.
+
+> **Caution:** this is destructive on the file-writing hooks (`write`, `edit`,
+> `multiedit`, `apply_patch`): a file that legitimately contains non-Latin
+> text — Japanese documentation, a Russian string table, an Arabic
+> translation — will have those characters deleted without a trace. Keep the
+> option off unless your project is Latin-only.
+
+Note that most pictographic emoji are `Script=Common` and survive stripping
+untouched. In the normal pipeline this does not matter: the `emojis` category
+replaces them with `:shortcode:` labels *before* stripping runs. With
+`emojis: false` and `stripNonLatin: true`, raw emoji pass through.
 
 ## Substitution reference
 
@@ -74,8 +101,7 @@ All four substitution categories are **enabled by default**. Disable any categor
 | U+2193  | ↓ | `v` |
 | U+21D2  | ⇒ | `=>` |
 | U+21D0  | ⇐ | `<=` |
-| U+21D4  | ⇔ | `<=>` |
-| U+2194  |  | `<->` |
+| U+2194  | ↔ | `<->` |
 
 ### Math operators
 
@@ -86,8 +112,6 @@ All four substitution categories are **enabled by default**. Disable any categor
 | U+2265  | ≥ | `>=` |
 | U+00D7  | × | `*` |
 | U+00F7  | ÷ | `/` |
-| U+00B1  | ± | `+/-` |
-| U+2212  | − | `-` |
 | U+221E  | ∞ | `inf` |
 | U+2248  | ≈ | `~=` |
 | U+221A  | √ | `sqrt` |
