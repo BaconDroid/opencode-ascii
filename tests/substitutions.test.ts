@@ -252,11 +252,12 @@ describe("stripNonLatinChars", () => {
   });
 
   it("preserves Inherited combining marks (decomposed accents)", () => {
-    // "e" + COMBINING ACUTE ACCENT written as an explicit escape so the
-    // decomposed form is unambiguous (a precomposed U+00E9 literal would
-    // have length 1 and fail the assertion below).
-    expect(stripNonLatinChars("é")).toBe("é");
-    expect(stripNonLatinChars("é").length).toBe(2);
+    // "e" + COMBINING ACUTE ACCENT, written with explicit \uXXXX escapes so
+    // the decomposed form is unambiguous no matter how this source file is
+    // encoded or rendered. A precomposed U+00E9 literal has length 1 and
+    // would fail the assertion below.
+    expect(stripNonLatinChars("\u0065\u0301")).toBe("\u0065\u0301");
+    expect(stripNonLatinChars("\u0065\u0301").length).toBe(2);
   });
 
   it("leaves raw emoji untouched (handled by emojis category first)", () => {
