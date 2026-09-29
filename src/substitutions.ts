@@ -212,22 +212,79 @@ export function applySubstitutions(
   return text.replace(regex, (match) => map.get(match) ?? match);
 }
 
-// The `u` flag is mandatory here: \p{...} property escapes are only
-// recognised in unicode mode. `g` lets replace() match every occurrence
-// (and String.prototype.replace resets lastIndex, so the shared regex
-// is safe to reuse across calls).
-const NON_LATIN = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/gu;
+// ---------------------------------------------------------------------------
+// Aggressive allowlist strip
+// ---------------------------------------------------------------------------
+//
+// The kept set is an explicit list of codepoint BLOCKS, not a script query.
+// Script queries were the original bug: `\p{Script=Common}` covers CJK
+// punctuation and every pictographic emoji, and `\p{Script=Latin}` covers
+// fullwidth letters, so a script filter leaks the exact characters this
+// function exists to remove.
+//
+// Kept blocks, in codepoint order. All of them are consecutive runs, so the
+// whole set collapses to five ranges with three holes:
+//
+//   U+0000-U+007F  Basic Latin
+//        <hole: U+0080-U+009F, the C1 controls>
+//   U+00A0-U+036F  Latin-1 Supplement, Latin Extended-A, Latin Extended-B,
+//                   IPA Extensions, Spacing Modifier Letters and Combining
+//                   Diacritical Marks. These six blocks are genuinely
+//                   consecutive -- each one starts at the codepoint after the
+//                   previous one ends -- so a single range covers all of them.
+//                   (Basic Latin above is NOT adjacent: the C1 gap separates
+//                   it, which is why there are two ranges and not one.)
+//        <hole: U+0370-U+1FFF, which is where Greek, Cyrillic, Hebrew, Arabic,
+//                   the CJK blocks, Hangul, kana and every symbol block live>
+//   U+2000-U+200A  General Punctuation, first kept run
+//        <hole: U+200B-U+200F, ZWSP / ZWNJ / ZWJ / LRM / RLM>
+//   U+2010-U+2027  General Punctuation, second kept run
+//        <hole: U+2028-U+202F, line and paragraph separators, bidi controls,
+//                   narrow no-break space>
+//   U+2030-U+205E  General Punctuation, third kept run
+//        <hole: U+205F-U+206F, medium mathematical space, word joiner,
+//                   invisible operators, bidi isolates>
+//
+// The three holes inside and around General Punctuation are the reason the
+// punctuation block is written as three ranges instead of one: the invisible
+// and format characters in it render as nothing and are actively harmful in a
+// terminal, so they are removed while the visible punctuation is kept.
+//
+// Everything not listed above is stripped: Greek, Cyrillic, Arabic, Hebrew,
+// CJK, kana, Hangul, Thai, Devanagari, emoji, the symbol blocks, the controls,
+// and the unassigned codepoints.
+//
+// This regex only ever DELETES. It never rewrites a character into another
+// one -- turning `—` into `-` or `🚀` into `:rocket:` is the job of the
+// `punctuation`/`arrows`/`math`/`emojis` tables, which run
+// first in rewriteText. See the README section "stripNonLatin" for why that
+// ordering matters.
+const NON_ASCII_ALLOWED =
+  /[^\u0000-\u007F\u00A0-\u036F\u2000-\u200A\u2010-\u2027\u2030-\u205E]/gu;
+
+// Fullwidth and halfwidth forms (U+FF00-U+FFEF) are the one deliberate
+// exception, and it is a fold, not a substitution. No category covers the
+// fullwidth block -- `punctuation`, `arrows`, `math` and
+// `emojis` have nothing to say about it -- and NFKC maps every one of them
+// onto a real ASCII counterpart, so folding is strictly better than deleting
+// the characters and loses no information: `ＡＢＣ` -> `ABC`,
+// `１２３` -> `123`.
+//
+// Only the matched runs are normalised, so the rest of the text stays
+// byte-identical and a character outside this block is never recomposed.
+const COMPATIBILITY_FORMS = /[\uFF00-\uFFEF]+/g;
 
 /**
- * Remove every character outside the Latin, Common, and Inherited scripts.
+ * Remove every character outside the explicit allowlist of codepoint blocks
+ * described above, folding U+FF00-U+FFEF to ASCII first.
  *
- * Applied after substitutions, so mapped characters are already ASCII. Keeps
- * Latin (`é`, `ç`, `ñ`), Common (punctuation, digits) and Inherited (combining
- * marks, so `e` + U+0301 keeps its accent); removes CJK, Cyrillic, Arabic,
- * Hebrew, Greek and any other script. Most pictographic emoji are Common and
- * survive raw — in the normal pipeline `emojis` converts them to `:shortcode:`
- * first.
+ * Applied after substitutions, so curated characters are already ASCII by the
+ * time this runs. Bare — with no substitution before it — it still keeps the
+ * Latin blocks, the visible General Punctuation and the combining diacritical
+ * marks intact; see the pipeline tests for what the combination produces.
  */
 export function stripNonLatinChars(text: string): string {
-  return text.replace(NON_LATIN, "");
+  return text
+    .replace(COMPATIBILITY_FORMS, (run) => run.normalize("NFKC"))
+    .replace(NON_ASCII_ALLOWED, "");
 }

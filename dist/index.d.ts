@@ -6,8 +6,8 @@ import { type SubstitutionConfig } from "./substitutions";
  * Set a category to `false` to skip substitution for it.
  *
  * `stripNonLatin` defaults to `false` (opt-in) and applies to AI text
- * responses only — never to file arguments, where dropping characters would
- * be irreversible data loss.
+ * responses and tool results — never to file arguments, where dropping
+ * characters would be irreversible data loss.
  *
  * @example
  * // opencode.json — disable emoji and math substitutions
@@ -16,7 +16,7 @@ import { type SubstitutionConfig } from "./substitutions";
  * }
  *
  * @example
- * // opencode.json — drop non-Latin characters from AI responses only
+ * // opencode.json — drop non-Latin characters from AI text and tool results
  * {
  *   "plugin": [["opencode-ascii", { "stripNonLatin": true }]]
  * }
@@ -37,6 +37,21 @@ export type ToolExecuteBeforeOutput = {
     args: Record<string, unknown>;
 };
 /**
+ * `input` of `tool.execute.after`.
+ *
+ * Structurally narrowed to the single field this plugin reads; the host also
+ * passes `sessionID`, `callID` and `args`, which stay unused here.
+ */
+export type ToolExecuteAfterInput = {
+    tool: string;
+};
+/** `output` of `tool.execute.after`. */
+export type ToolExecuteAfterOutput = {
+    title: string;
+    output: string;
+    metadata: unknown;
+};
+/**
  * The hooks this plugin implements, described structurally so the emitted
  * declaration does not depend on the host's plugin package. The conformance
  * assertion at the bottom of this file keeps them aligned with the host
@@ -45,14 +60,16 @@ export type ToolExecuteBeforeOutput = {
 export type AsciiPluginHooks = {
     "experimental.text.complete"?: (input: unknown, output: TextCompleteOutput) => Promise<void>;
     "tool.execute.before"?: (input: ToolExecuteBeforeInput, output: ToolExecuteBeforeOutput) => Promise<void>;
+    "tool.execute.after"?: (input: ToolExecuteAfterInput, output: ToolExecuteAfterOutput) => Promise<void>;
 };
 /**
  * AsciiPlugin — substitutes unicode characters with ASCII equivalents
- * in AI responses and file write/edit operations.
+ * in AI responses, file write/edit operations, and tool results.
  *
  * Covered hooks:
  *  - `experimental.text.complete` : rewrites completed AI text parts (substitution + optional `stripNonLatin`)
  *  - `tool.execute.before`        : rewrites `write` and `edit` tool arguments (substitution only)
+ *  - `tool.execute.after`         : rewrites the rendered title and output of any tool result (substitution + optional `stripNonLatin`)
  */
 export declare const AsciiPlugin: (_ctx?: unknown, options?: AsciiPluginInput) => Promise<AsciiPluginHooks>;
 declare const _default: {
