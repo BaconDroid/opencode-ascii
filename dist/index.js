@@ -9,6 +9,10 @@ function resolveConfig(options) {
     const config = {};
     if (typeof options["punctuation"] === "boolean")
         config.punctuation = options["punctuation"];
+    if (typeof options["frames"] === "boolean")
+        config.frames = options["frames"];
+    if (typeof options["shapes"] === "boolean")
+        config.shapes = options["shapes"];
     if (typeof options["arrows"] === "boolean")
         config.arrows = options["arrows"];
     if (typeof options["math"] === "boolean")
@@ -21,11 +25,12 @@ function resolveConfig(options) {
 }
 /**
  * AsciiPlugin — substitutes unicode characters with ASCII equivalents
- * in AI responses and file write/edit operations.
+ * in AI responses, file write/edit operations, and tool results.
  *
  * Covered hooks:
  *  - `experimental.text.complete` : rewrites completed AI text parts (substitution + optional `stripNonLatin`)
  *  - `tool.execute.before`        : rewrites `write` and `edit` tool arguments (substitution only)
+ *  - `tool.execute.after`         : rewrites the rendered title and output of any tool result (substitution + optional `stripNonLatin`)
  */
 export const AsciiPlugin = async (_ctx, options) => {
     const config = resolveConfig(options);
@@ -47,9 +52,9 @@ export const AsciiPlugin = async (_ctx, options) => {
     /**
      * Substitution, then optional non-Latin stripping.
      *
-     * Used for AI text parts only: `write`/`edit` payloads legitimately contain
-     * non-Latin text (translated docs, string tables), and removing characters
-     * from them would be irreversible data loss.
+     * Never used on file payloads: `write`/`edit`/`apply_patch` arguments
+     * legitimately contain non-Latin text (translated docs, string tables), and
+     * removing characters from them would be irreversible data loss.
      */
     function rewriteText(text) {
         const substituted = substitute(text);
@@ -98,6 +103,48 @@ export const AsciiPlugin = async (_ctx, options) => {
                     }
                     break;
                 }
+            }
+        },
+        /**
+         * Rewrite the rendered title and body of a tool result.
+         *
+         * `bash`, `read`, `grep`, `glob`, `list`, `webfetch` and MCP tools all
+         * surface their raw payload here, and none of them go through
+         * `experimental.text.complete` — so CJK read out of a source file, printed
+         * by a shell command, or returned by a web/MCP call reached the TUI
+         * untouched. This hook is the only interception point the host offers.
+         *
+         * Trade-offs, stated explicitly:
+         *
+         *  - **The model loses the original characters.** A tool result is stored
+         *    in the transcript and replayed to the model on later turns, so this
+         *    rewrite is not display-only: after stripping, the model sees
+         *    `See file foo` where the tool actually returned `foo のドキュメント`.
+         *    This is the intended trade — the option is opt-in — but it means
+         *    `stripNonLatin` is lossy for any turn that continues past a tool call.
+         *    File payloads (`write`/`edit`/`apply_patch`) are still never stripped,
+         *    so nothing is destroyed on disk.
+         *  - **Redacted results go through the same pass.** The host substitutes
+         *    sensitive tool output with a redacted placeholder and still calls this
+         *    hook; `input.tool` does not say whether the payload was redacted, so
+         *    the pass cannot be skipped selectively. In practice that is inert —
+         *    placeholders are ASCII — but it does mean the hook runs over content
+         *    the plugin has no visibility into, and it is the reason the pass is
+         *    deliberately limited to the two `string` fields below.
+         *  - **`metadata` is left alone.** It is structured data the TUI consumes
+         *    (diff metadata, truncation flags, file paths); rewriting it risks
+         *    breaking the renderer for no display gain.
+         *
+         * Unlike `tool.execute.before`, this hook applies `stripNonLatin` too, and
+         * it applies to every tool — content-bearing fields are not reachable
+         * here, so there is nothing to protect.
+         */
+        "tool.execute.after": async (_input, output) => {
+            if (typeof output?.title === "string") {
+                output.title = rewriteText(output.title);
+            }
+            if (typeof output?.output === "string") {
+                output.output = rewriteText(output.output);
             }
         },
     };
