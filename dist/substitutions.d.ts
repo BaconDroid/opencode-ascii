@@ -28,13 +28,12 @@ export declare function buildRegex(substitutions: Array<[string, string]>): RegE
  */
 export declare function applySubstitutions(text: string, regex: RegExp, map: Map<string, string>): string;
 /**
- * Remove every character outside the Latin, Common, and Inherited scripts.
+ * Remove every character outside the explicit allowlist of codepoint blocks
+ * described above, folding U+FF00-U+FFEF to ASCII first.
  *
- * Applied after substitutions, so mapped characters are already ASCII. Keeps
- * Latin (`é`, `ç`, `ñ`), Common (punctuation, digits) and Inherited (combining
- * marks, so `e` + U+0301 keeps its accent); removes CJK, Cyrillic, Arabic,
- * Hebrew, Greek and any other script. Most pictographic emoji are Common and
- * survive raw — in the normal pipeline `emojis` converts them to `:shortcode:`
- * first.
+ * Applied after substitutions, so curated characters are already ASCII by the
+ * time this runs. Bare — with no substitution before it — it still keeps the
+ * Latin blocks, the visible General Punctuation and the combining diacritical
+ * marks intact; see the pipeline tests for what the combination produces.
  */
 export declare function stripNonLatinChars(text: string): string;
