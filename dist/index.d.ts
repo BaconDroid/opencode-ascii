@@ -6,13 +6,19 @@ import { type SubstitutionConfig } from "./substitutions";
  * Set a category to `false` to skip substitution for it.
  *
  * `stripNonLatin` defaults to `false` (opt-in) and applies to AI text
- * responses and tool results — never to file arguments, where dropping
- * characters would be irreversible data loss.
+ * responses only — never to file arguments, where dropping characters would
+ * be irreversible data loss.
  *
  * @example
  * // opencode.json — disable emoji and math substitutions
  * {
  *   "plugin": [["opencode-ascii", { "emojis": false, "math": false }]]
+ * }
+ *
+ * @example
+ * // opencode.json — keep box-drawing frames raw (no ASCII-art rewrite)
+ * {
+ *   "plugin": [["opencode-ascii", { "frames": false }]]
  * }
  *
  * @example

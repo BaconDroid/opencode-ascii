@@ -9,6 +9,10 @@ function resolveConfig(options) {
     const config = {};
     if (typeof options["punctuation"] === "boolean")
         config.punctuation = options["punctuation"];
+    if (typeof options["frames"] === "boolean")
+        config.frames = options["frames"];
+    if (typeof options["shapes"] === "boolean")
+        config.shapes = options["shapes"];
     if (typeof options["arrows"] === "boolean")
         config.arrows = options["arrows"];
     if (typeof options["math"] === "boolean")
@@ -64,8 +68,7 @@ export const AsciiPlugin = async (_ctx, options) => {
          * `experimental.text.complete` fires once per text part after the
          * streaming is done, giving us `output.text` to modify in place.
          *
-         * One of the two hooks where `stripNonLatin` is applied (the other is
-         * `tool.execute.after` below).
+         * The only hook where `stripNonLatin` is applied.
          */
         "experimental.text.complete": async (_input, output) => {
             if (typeof output.text === "string") {

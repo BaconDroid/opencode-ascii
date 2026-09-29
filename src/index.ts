@@ -14,13 +14,19 @@ import {
  * Set a category to `false` to skip substitution for it.
  *
  * `stripNonLatin` defaults to `false` (opt-in) and applies to AI text
- * responses and tool results — never to file arguments, where dropping
- * characters would be irreversible data loss.
+ * responses only — never to file arguments, where dropping characters would
+ * be irreversible data loss.
  *
  * @example
  * // opencode.json — disable emoji and math substitutions
  * {
  *   "plugin": [["opencode-ascii", { "emojis": false, "math": false }]]
+ * }
+ *
+ * @example
+ * // opencode.json — keep box-drawing frames raw (no ASCII-art rewrite)
+ * {
+ *   "plugin": [["opencode-ascii", { "frames": false }]]
  * }
  *
  * @example
@@ -88,6 +94,8 @@ function resolveConfig(options?: AsciiPluginInput): SubstitutionConfig {
   const config: SubstitutionConfig = {};
   if (typeof options["punctuation"] === "boolean")
     config.punctuation = options["punctuation"];
+  if (typeof options["frames"] === "boolean") config.frames = options["frames"];
+  if (typeof options["shapes"] === "boolean") config.shapes = options["shapes"];
   if (typeof options["arrows"] === "boolean") config.arrows = options["arrows"];
   if (typeof options["math"] === "boolean") config.math = options["math"];
   if (typeof options["emojis"] === "boolean") config.emojis = options["emojis"];
@@ -148,8 +156,7 @@ export const AsciiPlugin = async (
      * `experimental.text.complete` fires once per text part after the
      * streaming is done, giving us `output.text` to modify in place.
      *
-     * One of the two hooks where `stripNonLatin` is applied (the other is
-     * `tool.execute.after` below).
+     * The only hook where `stripNonLatin` is applied.
      */
     "experimental.text.complete": async (_input, output) => {
       if (typeof output.text === "string") {
