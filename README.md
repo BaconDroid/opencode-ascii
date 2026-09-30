@@ -276,9 +276,9 @@ See [`src/substitutions.ts`](src/substitutions.ts) for the full list.
 **every substitution value** in the six tables above — WHOLESALE, not a curated
 subset. All 2606 entries are the AnyAscii 0.3.3 replacement verbatim, across the
 13 Unicode blocks the plugin already touched. Reproduce with
-`python3 scripts/vendor-anyascii.py` (or verify with `--check`); the per-entry
-provenance is `scripts/anyascii-manifest.json` (codepoint, exact TS spelling,
-category, the upstream value `aa`).
+`python3 scripts/vendor-anyascii.py` (or verify with `--check`); the vendored
+reference is `vendor/anyascii/table-0.3.3-subset.tsv`, one AnyAscii row per
+mapped codepoint, and `--check` recoups every table value against it.
 
 Examples of the values this brings in: `→` is now `>` (was `->`), `≠` is `=`
 (was `!=`), `👍` is `:thumbsup:` (was `:+1:`), `∀` is `V` (was `all`), `↵` is
@@ -338,7 +338,7 @@ glyph by glyph.
 Pinned input is `vendor/anyascii/table-0.3.3-subset.tsv` — the mapped rows of
 the AnyAscii tag 0.3.3 table (full table: 123799 rows, SHA-256
 63d405125a149ed646b6f932be96414e2db4b9ff5c3cb1fac49f6386a6fb1fa9, not checked
-in; identity recorded in `scripts/anyascii-manifest.json`). The subset file is
+in; identity pinned in `scripts/vendor-anyascii.py`). The subset file is
 SHA-256 verified on every run. The generator fails on any drift: subset hash change, a target that no
 longer matches the subset, a spelling that decodes elsewhere, a non-ASCII target,
 a duplicate key, a scope violation (<2 entries per block, unknown block,

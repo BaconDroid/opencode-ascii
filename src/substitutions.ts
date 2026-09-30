@@ -10,8 +10,8 @@
  * sign U+20AC (explicit decision, the strip deletes it). Assumed, not
  * upstream: the :shortcode: names treated as Discord-style labels, the
  * category placement of wholesale entries by block, and the frames/shapes
- * split itself. See scripts/anyascii-manifest.json and the README section
- * "Table sourcing (AnyAscii)".
+ * split itself. See the README section "Table sourcing (AnyAscii)" and the
+ * vendored rows in vendor/anyascii/table-0.3.3-subset.tsv.
  * Regenerate with: python3 scripts/vendor-anyascii.py
  */
 

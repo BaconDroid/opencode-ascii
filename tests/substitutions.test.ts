@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   PUNCTUATION,
   FRAMES,
@@ -11,6 +14,9 @@ import {
   applySubstitutions,
   stripNonLatinChars,
 } from "../src/substitutions";
+
+// Directory of this test file, for locating the vendored AnyAscii subset.
+const here = dirname(fileURLToPath(import.meta.url));
 
 // ---------------------------------------------------------------------------
 // Array structure
@@ -1298,6 +1304,35 @@ describe("scope invariant: no block is represented by a single entry", () => {
     expect(ARROWS.length).toBe(377);
     expect(MATH.length).toBe(260);
     expect(EMOJIS.length).toBe(1580);
+  });
+
+  it("matches every value to the vendored AnyAscii subset row", () => {
+    // Wholesale proof inside the test suite, straight from the vendored file:
+    // vendor/anyascii/table-0.3.3-subset.tsv holds one AnyAscii 0.3.3 row per
+    // mapped codepoint; each table value must equal its row verbatim, and the
+    // row count must equal the table size.
+    const raw = readFileSync(
+      join(here, "..", "vendor", "anyascii", "table-0.3.3-subset.tsv"),
+      "utf-8",
+    );
+    const rows = new Map<string, string>();
+    for (const line of raw.split("\n")) {
+      if (!line) continue;
+      const tab = line.indexOf("\t");
+      rows.set(line.slice(0, tab), tab === -1 ? "" : line.slice(tab + 1));
+    }
+    const ALL = [
+      ...PUNCTUATION,
+      ...FRAMES,
+      ...SHAPES,
+      ...ARROWS,
+      ...MATH,
+      ...EMOJIS,
+    ];
+    expect(rows.size).toBe(ALL.length);
+    for (const [from, to] of ALL) {
+      expect(rows.get(from), JSON.stringify(from)).toBe(to);
+    }
   });
 });
 
