@@ -2782,12 +2782,49 @@ export function buildSubstitutions(config = {}) {
 /**
  * Build a compiled RegExp that matches all active unicode characters at once.
  * This is much faster than running replace() N times.
+ *
+ * The pattern is a single character class of coalesced codepoint ranges, not
+ * an alternation. An alternation of all 2606 entries pushes V8 off its
+ * optimiser onto the interpreter, with match cost proportional to the number
+ * of alternatives (measured, byte-identical output: 100 KB of matching text
+ * took 648 ms as an alternation vs 0.5 ms as a class; 1 MB took 7667 ms vs
+ * 5.6 ms; 1 MB with no match is equivalent either way). V8 compiles classes
+ * to a range table, so the 23 ranges below cost the same as a handful.
+ * Ranges may cover codepoints no table maps; that is harmless because
+ * applySubstitutions falls back to the character itself (`?? match`). An
+ * empty set yields `[]`, which never matches — replacing nothing, like the
+ * old empty alternation.
  */
 export function buildRegex(substitutions) {
-    const pattern = substitutions
-        .map(([ch]) => ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-        .join("|");
-    return new RegExp(pattern, "gu");
+    const points = substitutions
+        .map(([ch]) => ch.codePointAt(0))
+        .sort((a, b) => a - b);
+    let pattern = "";
+    let i = 0;
+    while (i < points.length) {
+        if (i > 0 && points[i] === points[i - 1]) {
+            i++;
+            continue;
+        }
+        let j = i;
+        while (j + 1 < points.length && points[j + 1] === points[j] + 1)
+            j++;
+        pattern += escapePoint(points[i]);
+        if (j > i)
+            pattern += "-" + escapePoint(points[j]);
+        i = j + 1;
+    }
+    return new RegExp(`[${pattern}]`, "gu");
+}
+/**
+ * Spell a codepoint as a character-class-safe escape.
+ *
+ * Every entry is emitted escaped (`\uXXXX` / `\u{XXXXX}`), so no literal in
+ * the class can ever read as a range dash, a negation or a class close.
+ */
+function escapePoint(cp) {
+    const hex = cp.toString(16);
+    return cp <= 0xffff ? "\\u" + hex.padStart(4, "0") : "\\u{" + hex + "}";
 }
 /**
  * Apply substitutions to a string using a pre-built map and regex.

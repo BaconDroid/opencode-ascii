@@ -228,7 +228,90 @@ describe("buildRegex", () => {
     const regex = buildRegex(subs);
     expect("launch 🚀 now".match(regex)).not.toBeNull();
   });
+
+  it("coalesces the full table into 23 pinned ranges", () => {
+    // The performance cliff this locks: an alternation of all 2606 entries
+    // pushes V8 onto the interpreter (measured 648 ms per 100 KB of matching
+    // text vs 0.5 ms as a class, byte-identical output), while a class
+    // compiles to a range table. These bounds are the contract — a table edit
+    // that opens a gap or a new run must update them deliberately.
+    const ranges = classRanges(buildRegex(buildSubstitutions({})).source);
+    expect(ranges.length).toBe(23);
+    expect(ranges).toEqual([
+      [0x00a0, 0x00a1],
+      [0x00ab, 0x00ac],
+      [0x00b1, 0x00b1],
+      [0x00b7, 0x00b7],
+      [0x00bb, 0x00bb],
+      [0x00bf, 0x00bf],
+      [0x00d7, 0x00d7],
+      [0x00f7, 0x00f7],
+      [0x2000, 0x200a],
+      [0x2010, 0x2029],
+      [0x202f, 0x205f],
+      [0x2100, 0x214f],
+      [0x2190, 0x23ff],
+      [0x2500, 0x257f],
+      [0x25a0, 0x27bf],
+      [0x2b00, 0x2b73],
+      [0x2b76, 0x2b95],
+      [0x2b97, 0x2bff],
+      [0x1f300, 0x1f3fa],
+      [0x1f400, 0x1f5ff],
+      [0x1f680, 0x1f6d7],
+      [0x1f6dc, 0x1f6ec],
+      [0x1f6f0, 0x1f6fc],
+    ]);
+  });
+
+  it("matches every table character through the class", () => {
+    const subs = buildSubstitutions({});
+    const regex = buildRegex(subs);
+    for (const [from] of subs) {
+      // String.match with /g ignores lastIndex, so the shared stateful
+      // regex needs no reset between iterations.
+      expect(`a${from}b`.match(regex)).not.toBeNull();
+    }
+  });
+
+  it("leaves characters outside the class unmatched", () => {
+    const subs = buildSubstitutions({});
+    const regex = buildRegex(subs);
+    // None of these sits inside the 23 ranges above.
+    for (const ch of ["A", "é", "€", "世", "🧠", "🫠", "\u0000"]) {
+      expect(ch.match(regex)).toBeNull();
+    }
+  });
 });
+
+/**
+ * Parse a character-class source (`[\uXXXX-\uYYYY\uZZZZ...]`) back into the
+ * sorted [lo, hi] codepoint ranges it denotes.
+ */
+function classRanges(source: string): Array<[number, number]> {
+  const inner = source.slice(1, -1);
+  const tokens = inner.match(/\\u(\{[0-9a-f]+\}|[0-9a-f]{4})/g) ?? [];
+  const seps = inner.split(/\\u(?:\{[0-9a-f]+\}|[0-9a-f]{4})/g);
+  const cps = tokens.map((t) =>
+    t.startsWith("\\u{")
+      ? parseInt(t.slice(3, -1), 16)
+      : parseInt(t.slice(2), 16),
+  );
+  const ranges: Array<[number, number]> = [];
+  let i = 0;
+  while (i < cps.length) {
+    // A "-" separator between two escapes denotes a range; anything else
+    // (start, end, or a singleton run) is a boundary.
+    if (seps[i + 1] === "-" && i + 1 < cps.length) {
+      ranges.push([cps[i], cps[i + 1]]);
+      i += 2;
+    } else {
+      ranges.push([cps[i], cps[i]]);
+      i += 1;
+    }
+  }
+  return ranges;
+}
 
 // ---------------------------------------------------------------------------
 // applySubstitutions

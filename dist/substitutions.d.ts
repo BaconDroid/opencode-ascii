@@ -36,6 +36,18 @@ export declare function buildSubstitutions(config?: SubstitutionConfig): Array<[
 /**
  * Build a compiled RegExp that matches all active unicode characters at once.
  * This is much faster than running replace() N times.
+ *
+ * The pattern is a single character class of coalesced codepoint ranges, not
+ * an alternation. An alternation of all 2606 entries pushes V8 off its
+ * optimiser onto the interpreter, with match cost proportional to the number
+ * of alternatives (measured, byte-identical output: 100 KB of matching text
+ * took 648 ms as an alternation vs 0.5 ms as a class; 1 MB took 7667 ms vs
+ * 5.6 ms; 1 MB with no match is equivalent either way). V8 compiles classes
+ * to a range table, so the 23 ranges below cost the same as a handful.
+ * Ranges may cover codepoints no table maps; that is harmless because
+ * applySubstitutions falls back to the character itself (`?? match`). An
+ * empty set yields `[]`, which never matches — replacing nothing, like the
+ * old empty alternation.
  */
 export declare function buildRegex(substitutions: Array<[string, string]>): RegExp;
 /**
