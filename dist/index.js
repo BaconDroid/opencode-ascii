@@ -68,7 +68,8 @@ export const AsciiPlugin = async (_ctx, options) => {
          * `experimental.text.complete` fires once per text part after the
          * streaming is done, giving us `output.text` to modify in place.
          *
-         * The only hook where `stripNonLatin` is applied.
+         * One of the two hooks where `stripNonLatin` is applied (the other is
+         * `tool.execute.after` below).
          */
         "experimental.text.complete": async (_input, output) => {
             if (typeof output.text === "string") {
@@ -76,18 +77,11 @@ export const AsciiPlugin = async (_ctx, options) => {
             }
         },
         /**
-         * Rewrite file-writing tool arguments before execution.
+         * Rewrite file-writing tool arguments before execution, substitutions
+         * only — never `stripNonLatin`, never `oldString` (it must match).
          *
-         * Substitutions only — `stripNonLatin` is never applied here.
-         *
-         * Tools handled:
-         *  - `write` : `args.content`
-         *  - `edit`  : `args.newString` (NOT `oldString` -- it must match existing file content)
-         *
-         * `apply_patch` is deliberately NOT handled: `args.patchText` is a
-         * machine-parsed unified diff whose removal and context lines must match
-         * the target file byte for byte, so substituting inside it makes patches
-         * fail to apply.
+         * `apply_patch` stays out: its removal and context lines must match the
+         * target file byte for byte, so substituting `patchText` breaks patches.
          */
         "tool.execute.before": async (input, output) => {
             switch (input.tool) {
@@ -108,36 +102,10 @@ export const AsciiPlugin = async (_ctx, options) => {
         /**
          * Rewrite the rendered title and body of a tool result.
          *
-         * `bash`, `read`, `grep`, `glob`, `list`, `webfetch` and MCP tools all
-         * surface their raw payload here, and none of them go through
-         * `experimental.text.complete` — so CJK read out of a source file, printed
-         * by a shell command, or returned by a web/MCP call reached the TUI
-         * untouched. This hook is the only interception point the host offers.
-         *
-         * Trade-offs, stated explicitly:
-         *
-         *  - **The model loses the original characters.** A tool result is stored
-         *    in the transcript and replayed to the model on later turns, so this
-         *    rewrite is not display-only: after stripping, the model sees
-         *    `See file foo` where the tool actually returned `foo のドキュメント`.
-         *    This is the intended trade — the option is opt-in — but it means
-         *    `stripNonLatin` is lossy for any turn that continues past a tool call.
-         *    File payloads (`write`/`edit`/`apply_patch`) are still never stripped,
-         *    so nothing is destroyed on disk.
-         *  - **Redacted results go through the same pass.** The host substitutes
-         *    sensitive tool output with a redacted placeholder and still calls this
-         *    hook; `input.tool` does not say whether the payload was redacted, so
-         *    the pass cannot be skipped selectively. In practice that is inert —
-         *    placeholders are ASCII — but it does mean the hook runs over content
-         *    the plugin has no visibility into, and it is the reason the pass is
-         *    deliberately limited to the two `string` fields below.
-         *  - **`metadata` is left alone.** It is structured data the TUI consumes
-         *    (diff metadata, truncation flags, file paths); rewriting it risks
-         *    breaking the renderer for no display gain.
-         *
-         * Unlike `tool.execute.before`, this hook applies `stripNonLatin` too, and
-         * it applies to every tool — content-bearing fields are not reachable
-         * here, so there is nothing to protect.
+         * Not display-only: results are replayed to the model, so stripping is
+         * lossy past the tool call — the assumed trade of the opt-in. `metadata`
+         * is left alone (the renderer consumes it). This is the only interception
+         * point the host offers for tool results.
          */
         "tool.execute.after": async (_input, output) => {
             if (typeof output?.title === "string") {
