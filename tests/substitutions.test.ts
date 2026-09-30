@@ -53,17 +53,13 @@ describe("substitution arrays", () => {
   });
 
   it("EMOJIS emoji codepoints above U+FFFF are single surrogate pairs (not mis-escaped)", () => {
-    // Every entry whose 'from' side is a supplementary plane character
-    // must have .length === 2 (JS surrogate pair), NOT 3 or more
-    // (which would indicate the \uXXXX mis-encoding concatenated extra chars).
+    // A mis-escaped \u1F680 would be \u1F68 + "0": still 2 units but the
+    // wrong character, so length alone is not enough — the codepoint must
+    // round-trip too.
     for (const [from] of EMOJIS) {
       const cp = from.codePointAt(0) ?? 0;
       if (cp > 0xffff) {
-        // Surrogate pair = 2 UTF-16 code units. A mis-escaped \u1F680 would be
-        // \u1F68 (1 unit) + "0" (1 unit) = 2 units but wrong character.
-        // So we also verify the codepoint is actually what we expect.
         expect(from.length).toBe(2); // surrogate pair
-        // Confirm it round-trips correctly
         expect(String.fromCodePoint(cp)).toBe(from);
       }
     }
@@ -91,7 +87,6 @@ describe("buildSubstitutions", () => {
   it("returns all 6 categories by default (empty config)", () => {
     const subs = buildSubstitutions({});
     const fromSet = new Set(subs.map(([k]) => k));
-    // Should contain entries from every category
     expect(fromSet.has("—")).toBe(true); // em dash -- PUNCTUATION
     expect(fromSet.has("┌")).toBe(true); // corner -- FRAMES
     expect(fromSet.has("●")).toBe(true); // black circle -- SHAPES
@@ -256,10 +251,7 @@ describe("buildRegex", () => {
   });
 });
 
-/**
- * Parse a character-class source (`[\uXXXX-\uYYYY\uZZZZ...]`) back into the
- * sorted [lo, hi] codepoint ranges it denotes.
- */
+/** Parse a character-class source back into its sorted [lo, hi] ranges. */
 function classRanges(source: string): Array<[number, number]> {
   const inner = source.slice(1, -1);
   const tokens = inner.match(/\\u(\{[0-9a-f]+\}|[0-9a-f]{4})/g) ?? [];
@@ -396,8 +388,6 @@ describe("stripNonLatinChars", () => {
   });
 
   it("strips everything from U+0370 up to U+1FFF (the hole after the Latin blocks)", () => {
-    // Greek and Coptic starts at U+0370. This range also holds Cyrillic,
-    // Hebrew, Arabic, the CJK blocks, kana, Hangul and every symbol block.
     expect(stripNonLatinChars("aͰb")).toBe("ab"); // U+0370 Greek and Coptic
     expect(stripNonLatinChars("aαb")).toBe("ab"); // U+03B1 Greek
     expect(stripNonLatinChars("aПb")).toBe("ab"); // U+041F Cyrillic
@@ -417,14 +407,10 @@ describe("stripNonLatinChars", () => {
 
   it("keeps precomposed and Latin-1 accents", () => {
     expect(stripNonLatinChars("Café déjà vu ñ ø")).toBe("Café déjà vu ñ ø");
-    // ß and the Latin-1 symbols live in the same kept block.
     expect(stripNonLatinChars("Straße × ÷ ± ¬")).toBe("Straße × ÷ ± ¬");
   });
 
   it("keeps Latin Extended (U+0100-U+024F)", () => {
-    // Extended-A runs U+0100-U+017F and Extended-B U+0180-U+024F; both sit
-    // inside the kept range, so Central and Eastern European spellings survive
-    // whole. This block was stripped in the previous revision.
     expect(stripNonLatinChars("Łódź")).toBe("Łódź");
     expect(stripNonLatinChars("č š ž")).toBe("č š ž");
     expect(stripNonLatinChars("ā œ")).toBe("ā œ");
@@ -449,15 +435,10 @@ describe("stripNonLatinChars", () => {
   it("keeps Combining Diacritical Marks (U+0300-U+036F), so decomposed text survives", () => {
     // "e" + COMBINING ACUTE ACCENT, written with explicit \uXXXX escapes so the
     // decomposed form is unambiguous regardless of how this file is encoded.
-    // The block is the last one in the kept range, so the sequence passes
-    // through byte for byte and keeps its accent.
     expect(stripNonLatinChars("e\u0301")).toBe("e\u0301");
     expect(stripNonLatinChars("e\u0301").length).toBe(2);
-    // Precomposed U+00E9, in Latin-1 Supplement, is equally untouched.
     expect(stripNonLatinChars("\u00e9")).toBe("\u00e9");
     expect(stripNonLatinChars("\u00e9").length).toBe(1);
-    // The rest of the block: grave, circumflex, cedilla, and the last assigned
-    // codepoint of the block.
     expect(stripNonLatinChars("a\u0300")).toBe("a\u0300"); // grave
     expect(stripNonLatinChars("a\u0302")).toBe("a\u0302"); // circumflex
     expect(stripNonLatinChars("a\u0327")).toBe("a\u0327"); // cedilla
@@ -517,10 +498,6 @@ describe("stripNonLatinChars", () => {
   });
 
   it("strips marks above the Combining Diacritical Marks block", () => {
-    // U+0300-U+036F is the last Latin block in the allowlist. U+0370 onwards is
-    // not, so a mark used in a non-Latin script is removed while the one used
-    // as a Latin accent is kept. Superscript and subscript digits (U+2070,
-    // U+2080) are in a later block and go too.
     expect(stripNonLatinChars("a⁰")).toBe("a"); // U+2070 superscript zero
     expect(stripNonLatinChars("a₀")).toBe("a"); // U+2080 subscript zero
   });
@@ -543,8 +520,6 @@ describe("stripNonLatinChars", () => {
   });
 
   it("removes CJK punctuation (U+3000-U+303F and U+30FB)", () => {
-    // The ideographic space, comma and full stop, the corner and double-corner
-    // brackets, the angle and lenticular brackets, the katakana middle dot.
     expect(stripNonLatinChars("、")).toBe(""); //  ideographic comma
     expect(stripNonLatinChars("。")).toBe(""); // 。 ideographic full stop
     expect(stripNonLatinChars("「")).toBe(""); // 「 left corner bracket
@@ -594,10 +569,8 @@ describe("stripNonLatinChars", () => {
   });
 
   it("strips every emoji, mapped or not (the bare strip is not the pipeline)", () => {
-    // With no substitution in front of it the strip has no allowlist of emoji
-    // to consult, so all of them go. In the real pipeline the `emojis`
-    // category rewrites the mapped ones to :shortcode: first — see the
-    // pipeline block below.
+    // Bare, the strip consults no allowlist of emoji: all go. In the real
+    // pipeline the `emojis` category rewrites the mapped ones first.
     expect(stripNonLatinChars("launch 🚀 now")).toBe("launch  now");
     expect(stripNonLatinChars("brain 🧠 melt 🫠")).toBe("brain  melt ");
     expect(stripNonLatinChars("ship it 🎉")).toBe("ship it ");
@@ -608,33 +581,27 @@ describe("stripNonLatinChars", () => {
   // -------------------------------------------------------------------
 
   it("folds fullwidth forms to their ASCII base instead of deleting them", () => {
-    // Not a substitution category: no punctuation/arrows/math/emojis entry
-    // covers the fullwidth block. NFKC maps every codepoint in it onto a real
-    // ASCII counterpart, so folding is strictly better than a dry delete.
+    // No substitution category covers the fullwidth block; folding beats a
+    // dry delete because NFKC maps every codepoint in it onto real ASCII.
     expect(stripNonLatinChars("ＡＢＣ")).toBe("ABC"); // fullwidth A B C
     expect(stripNonLatinChars("１２３")).toBe("123"); // fullwidth digits
     expect(stripNonLatinChars("！？")).toBe("!?"); // fullwidth ! ?
     expect(stripNonLatinChars("Ｈｅｌｌｏ")).toBe("Hello");
-    // The fullwidth brackets fold to ASCII; whatever is between them is then
-    // judged by the block allowlist, so Latin survives and CJK does not.
     expect(stripNonLatinChars("（ABC）")).toBe("(ABC)");
     expect(stripNonLatinChars("（丸）")).toBe("()");
     expect(stripNonLatinChars("aＡb")).toBe("aAb"); // inline, mixed blocks
   });
 
   it("removes halfwidth katakana (folds to Katakana, which is then stripped)", () => {
-    // U+FF71-U+FF9D are halfwidth katakana: NFKC expands them to fullwidth
-    // katakana, which is in no kept block and gets removed. The voiced sound
-    // mark U+FF9E decomposes to U+3099, also in no kept block, so it leaves no
-    // residue either.
+    // NFKC expands halfwidth katakana to fullwidth katakana (kept by no
+    // block) and the voiced mark to U+3099 (likewise), so nothing remains.
     expect(stripNonLatinChars("ｱｲｳ")).toBe(""); // ｱｲｳ
     expect(stripNonLatinChars("ｶﾞ")).toBe(""); // ｶ + halfwidth voiced mark
   });
 
   it("does not recompose or alter text outside the fullwidth block", () => {
-    // Only the matched U+FF00-U+FFEF runs are normalised. A precomposed é is
-    // in a kept block and is passed through byte for byte; the fullwidth run
-    // next to it is folded independently.
+    // Only matched U+FF00-U+FFEF runs are normalised; the rest passes through
+    // byte for byte.
     expect(stripNonLatinChars("\u00e9Ａ")).toBe("\u00e9A");
     expect(stripNonLatinChars("\u00e9\u00e9")).toBe("\u00e9\u00e9");
   });
@@ -661,7 +628,6 @@ describe("stripNonLatinChars", () => {
     const folded = input.replace(/[\uFF00-\uFFEF]+/g, (r) => r.normalize("NFKC"));
     const out = stripNonLatinChars(input);
 
-    // Every output character must come from the folded input, in order.
     let i = 0;
     for (const ch of out) {
       const at = folded.indexOf(ch, i);
@@ -841,10 +807,9 @@ describe("full pipeline", () => {
 // ---------------------------------------------------------------------------
 // Additions from the completeness audit of the six tables.
 //
-// Before these, each character below was absent from its table AND outside the
-// strip keep-set, so `stripNonLatin: true` deleted it with no trace. The
-// failure was semantic, not cosmetic: "CI ┌────┐ passed" rendered as
-// "CI ---- passed", which asserts the opposite of what was written.
+// Each character below was absent from its table AND outside the strip
+// keep-set, so it was deleted with no trace — "CI ┌────┐ passed" rendered as
+// "CI ---- passed", asserting the opposite of what was written.
 // ---------------------------------------------------------------------------
 
 describe("audit additions", () => {
@@ -857,7 +822,6 @@ describe("audit additions", () => {
   }
 
   it("MATH: set inclusion and equality close the existing asymmetries", () => {
-    // WHOLESALE AnyAscii 0.3.3 values: single-char relations, not digraphs.
     const cases: Array<[string, string]> = [
       ["⊆", "<"], // subset of or equal to
       ["⊇", ">"], // superset of or equal to
@@ -873,7 +837,6 @@ describe("audit additions", () => {
   });
 
   it("ARROWS: hooks, return-to-line, rotation and dashed variants", () => {
-    // WHOLESALE AnyAscii 0.3.3 values: appearance forms and shortcodes.
     const cases: Array<[string, string]> = [
       ["↩", ":leftwards_arrow_with_hook:"], // leftwards arrow with hook
       ["↪", ":arrow_right_hook:"], // rightwards arrow with hook
@@ -890,8 +853,7 @@ describe("audit additions", () => {
   });
 
   it("ARROWS: ↵ maps to < per AnyAscii (no longer a real newline)", () => {
-    // WHOLESALE: U+21B5 takes the AnyAscii appearance form. No entry in any
-    // table changes the line structure of the output anymore.
+    // No entry in any table changes the line structure of the output anymore.
     expect(sub("foo↵bar")).toBe("foo<bar");
   });
 
@@ -910,13 +872,10 @@ describe("audit additions", () => {
     expect(sub("━")).toBe("-"); // heavy horizontal, twin of ─
     expect(sub("┃")).toBe("|"); // heavy vertical, twin of │
     expect(sub("┌━┐")).toBe("+-+");
-    // WHOLESALE: the heavy corners U+250F-U+257F joined per AnyAscii — this
-    // was the conscious decision the old assertion was waiting for.
     expect(sub("┏┓")).toBe("++");
   });
 
   it("PUNCTUATION: filled/hollow circle and square pairs", () => {
-    // WHOLESALE AnyAscii 0.3.3 values (now in SHAPES).
     const cases: Array<[string, string]> = [
       ["●", "*"], // black circle
       ["○", "*"], // white circle
@@ -928,7 +887,6 @@ describe("audit additions", () => {
   });
 
   it("PUNCTUATION: Letterlike units and marks that were silently deleted", () => {
-    // WHOLESALE AnyAscii 0.3.3 values.
     const cases: Array<[string, string]> = [
       ["™", "TM"], // trade mark sign
       ["℃", "C"], // degree celsius
@@ -943,12 +901,9 @@ describe("audit additions", () => {
 
   it("PUNCTUATION: the euro sign is deliberately NOT mapped", () => {
     // € -> "EUR" was refused: spelled out, the letters read as injected prose
-    // inside a sentence, while a bare number is already unambiguous once the
-    // sign is dropped. WHOLESALE keeps the refusal (Currency Symbols is
-    // outside the 13 open blocks) while everything else follows AnyAscii.
+    // while a bare number is already unambiguous once the sign is dropped.
     expect(sub("€")).toBe("€");
     expect(sub("cheapest is €42")).toBe("cheapest is €42");
-    // and it is in no table at all
     for (const table of [PUNCTUATION, FRAMES, SHAPES, ARROWS, MATH, EMOJIS]) {
       expect(table.map(([from]) => from)).not.toContain("€");
     }
@@ -977,12 +932,10 @@ describe("audit additions", () => {
   });
 
   it("EMOJIS: the block singletons were removed, not padded", () => {
-    // Scope rule: a Unicode block is only ever entered with two or more
-    // characters. Every block that was ever a singleton was emptied instead of
-    // padded, so these four are gone: 🙄 was the sole Emoticons entry, 🆕 the
-    // sole Enclosed Alphanumeric Supplement entry, and 🤔 / 🤝 the pair in
-    // Supplemental Symbols and Pictographs — removing one of the pair would
-    // have made the other a singleton, so both went.
+    // Blocks are entered with two or more entries or not at all: 🙄 was the
+    // sole Emoticons entry, 🆕 the sole Enclosed Alphanumeric Supplement one,
+    // and 🤔 / 🤝 shared Supplemental Symbols and Pictographs — removing one
+    // of the pair would have singletoned the other, so both went.
     for (const ch of ["🤔", "🙄", "🆕", "🤝"]) {
       const cp = ch.codePointAt(0)!;
       expect(sub(ch), `U+${cp.toString(16).toUpperCase()}`).toBe(ch);
@@ -994,8 +947,6 @@ describe("audit additions", () => {
   });
 
   it("respects the category flags for the new entries", () => {
-    // The additions must respond to exactly the one category they were filed
-    // under, same contract as the pre-existing entries (values are wholesale).
     expect(sub("✔", { emojis: false })).toBe("✔"); // ✔ is an EMOJIS entry
     expect(sub("✔")).toBe(":heavy_check_mark:");
     expect(sub("✨", { emojis: false })).toBe("✨");
@@ -1011,9 +962,7 @@ describe("audit additions", () => {
   });
 
   it("introduces no duplicate key across the six tables", () => {
-    // The audit added jumeaux of entries that already existed, so this guards
-    // against a future edit mapping the same codepoint twice. Last writer would
-    // win silently, depending on category order.
+    // Last writer would win silently, depending on category order.
     const all = [...PUNCTUATION, ...FRAMES, ...SHAPES, ...ARROWS, ...MATH, ...EMOJIS];
     const seen = new Set<number>();
     const dups: number[] = [];
@@ -1039,25 +988,13 @@ describe("audit additions", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Extensions of the thirteen blocks that were already open. No block is opened
-// here: every character below belongs to a block the tables already covered,
-// which is what keeps the ">= 2 entries per block" invariant satisfiable
-// without opening a fourteenth block for a single glyph.
+// Extensions of the thirteen blocks that were already open: no block is
+// opened here, which keeps ">= 2 entries per block" satisfiable.
 //
-// Two distinct defects are closed here, and the tests separate them on purpose:
-//
-//   1. Residue. U+00A0-U+00FF, U+2000-U+200A, U+2010-U+2027 and U+2030-U+205E
-//      are inside the strip keep-set, so an unmapped character there is not
-//      deleted by `stripNonLatin: true` -- it passes through still non-ASCII.
-//      Nine of the entries below are that class, and they are the ones asserted
-//      against the full pipeline below.
-//   2. Silent deletion. The other blocks are outside the keep-set, so an
-//      unmapped character there is deleted outright under `stripNonLatin: true`
-//      and only survives when that pass is off, which is the default.
-//
-// Every target is a fixed ASCII form or an existing shortcode, and each is
-// forced by a twin that was already mapped rather than chosen; no entry
-// introduces a new word.
+// Two defects, separated on purpose: (1) residue — unmapped characters inside
+// the keep-set pass through still non-ASCII, asserted against the pipeline
+// below; (2) silent deletion — characters outside the keep-set are deleted
+// outright under `stripNonLatin: true`.
 // ---------------------------------------------------------------------------
 
 describe("open-block extensions", () => {
@@ -1156,10 +1093,7 @@ describe("open-block extensions", () => {
   });
 
   it("closes the nine keep-set characters that leaked through the full pipeline", () => {
-    // These are inside the strip keep-set, so before this change they reached
-    // the output still non-ASCII. Asserted on the full pipeline, which is the
-    // only place the leak was observable. WHOLESALE values (‵ takes the
-    // backtick now).
+    // Asserted on the pipeline: the only place the leak was observable.
     const leaked: Array<[string, string]> = [
       ["\u00A0", " "],
       ["¡", "!"],
@@ -1173,7 +1107,6 @@ describe("open-block extensions", () => {
     ];
     for (const [unicode, ascii] of leaked) {
       expect(pipeline(`A${unicode}B`), `U+${unicode.codePointAt(0)!.toString(16).toUpperCase()}`).toBe(`A${ascii}B`);
-      // And the leak really was a leak: nothing in the keep-set deletes it.
       expect(stripNonLatinChars(`A${unicode}B`)).toBe(`A${unicode}B`);
     }
   });
@@ -1188,7 +1121,6 @@ describe("open-block extensions", () => {
   });
 
   it("honours the category switch: each addition is owned by exactly one table", () => {
-    // WHOLESALE values; placement frozen for existing entries, block map for new.
     const owned: Array<[string, string, string]> = [
       ["‐", "punctuation", "-"],
       ["℗", "punctuation", "(P)"],
@@ -1211,15 +1143,11 @@ describe("open-block extensions", () => {
     ];
     for (const [unicode, category, ascii] of owned) {
       expect(sub(unicode, { [category]: true }), unicode).toBe(ascii);
-      // With the owning category off the character is passed through untouched,
-      // so disabling a category still disables exactly its own entries.
       expect(sub(unicode, { [category]: false }), unicode).toBe(unicode);
     }
   });
 
   it("does not reopen any block, and leaves the emptied ones empty", () => {
-    // WHOLESALE fills the 13 open blocks without opening a fourteenth: the
-    // three emptied blocks and Currency Symbols stay unrepresented.
     const blocks = new Set(
       [...PUNCTUATION, ...FRAMES, ...SHAPES, ...ARROWS, ...MATH, ...EMOJIS].map(
         ([from]) => blockOf(from.codePointAt(0)!),
@@ -1233,9 +1161,6 @@ describe("open-block extensions", () => {
   });
 
   it("frames and shapes own exactly their blocks", () => {
-    // FRAMES is the Box Drawing block, nothing else (13 curated + 115
-    // wholesale); SHAPES is Geometric Shapes (6 curated + 77 wholesale) plus
-    // the two emoji-scale square twins from Miscellaneous Symbols and Arrows.
     // Triangles stay in ARROWS (directional use) and the pointer ► stays in
     // PUNCTUATION.
     const frameBlocks = new Set(
@@ -1257,10 +1182,7 @@ describe("open-block extensions", () => {
 
 // ---------------------------------------------------------------------------
 // Scope invariant: no Unicode block is ever represented by a single entry.
-// A block entered with one lone character looks arbitrary -- it implies the
-// block is handled when in fact only that one character is -- and it invites
-// a second lone entry later that hides the inconsistency. A block gets two or
-// more entries, or none at all.
+// A block gets two or more entries, or none at all.
 // ---------------------------------------------------------------------------
 
 const UNICODE_BLOCKS: Array<[number, number, string]> = [
@@ -1390,10 +1312,8 @@ describe("scope invariant: no block is represented by a single entry", () => {
   });
 
   it("matches every value to the vendored AnyAscii subset row", () => {
-    // Wholesale proof inside the test suite, straight from the vendored file:
-    // vendor/anyascii/table-0.3.3-subset.tsv holds one AnyAscii 0.3.3 row per
-    // mapped codepoint; each table value must equal its row verbatim, and the
-    // row count must equal the table size.
+    // One AnyAscii row per mapped codepoint; each table value must equal its
+    // row verbatim, and the row count must equal the table size.
     const raw = readFileSync(
       join(here, "..", "vendor", "anyascii", "table-0.3.3-subset.tsv"),
       "utf-8",
@@ -1433,37 +1353,30 @@ describe("full pipeline with stripNonLatin", () => {
   }
 
   it("keeps mapped emoji as ASCII :shortcode: and strips the unmapped ones", () => {
-    // 🚀 is in the EMOJIS table, so substitution turns it into ASCII before
-    // the strip pass. 🧠 and 🫠 are not in the table, so the strip removes them.
     expect(runPipeline("launch 🚀 to 🧠 the 🫠 finish")).toBe(
       "launch :rocket: to  the  finish",
     );
   });
 
   it("keeps every :shortcode: label intact, whatever emoji produced it", () => {
-    // The load-bearing guarantee: substitution emits pure ASCII, so nothing
-    // the emojis table produces can be caught by the strip that follows. The
-    // strip removes the original codepoint, never the label it became.
+    // Substitution emits pure ASCII, so the strip removes the original
+    // codepoint, never the label it became.
     const labelled = [
       "🚀", "🔥", "✅", "❌", "⚠", "⭐", "📝", "🔒", "📁", "👍",
       "🎉", "💡", "🧠", "🫠", "🤯", "🦄",
     ].map((ch) => runPipeline(`x ${ch} y`));
     for (const out of labelled) {
-      // Whatever survives is ASCII only, and the one-character label form
-      // `:word:` is present whenever the emoji was in the table.
       expect(out, JSON.stringify(out)).toMatch(/^x [\x20-\x7E]* y$/);
     }
     expect(runPipeline("x 🚀 y")).toBe("x :rocket: y");
     expect(runPipeline("x 🎉 y")).toBe("x :tada: y");
-    // Not in the table: removed, leaving no label behind.
     expect(runPipeline("x 🧠 y")).toBe("x  y");
     expect(runPipeline("x 🫠 y")).toBe("x  y");
   });
 
   it("substitutes curated punctuation before stripping, so no word breaks", () => {
-    // — -> "-" and « » -> "<<" / ">>" happen in the substitution pass. The
-    // bare strip would now KEEP all three (they are in kept blocks), but the
-    // pipeline never shows them raw because substitution converts them first.
+    // The bare strip would KEEP all three (kept blocks); substitution converts
+    // them first, so the pipeline never shows them raw.
     expect(runPipeline("wait — «ready» now")).toBe("wait - <<ready>> now");
   });
 
@@ -1473,9 +1386,6 @@ describe("full pipeline with stripNonLatin", () => {
   });
 
   it("strips CJK punctuation in a sentence", () => {
-    // The ideographic comma U+3001, the ideographic full stop U+3002 and the
-    // corner brackets U+300C/U+300D are all stripped, and so is every kana
-    // and kanji, leaving nothing behind.
     expect(runPipeline("これは、テスト。「本文」です。")).toBe("");
   });
 
@@ -1484,11 +1394,8 @@ describe("full pipeline with stripNonLatin", () => {
   });
 
   it("keeps decomposed Latin as decomposed, accent intact", () => {
-    // U+0300-U+036F is in the allowlist, so a decomposed sequence survives with
-    // its mark. The precomposed form is equally untouched, and the two remain
-    // distinct byte sequences -- the strip does not normalise between them.
-    // Both are written with explicit \uXXXX escapes so the intent survives any
-    // editor or tooling that would recompose one spelling into the other.
+    // Written with explicit \uXXXX escapes so the intent survives any editor
+    // or tooling that would recompose one spelling into the other.
     const decomposed = runPipeline("cafe\u0301"); // c a f e + COMBINING ACUTE
     expect(decomposed).toBe("cafe\u0301");
     expect(decomposed.length).toBe(5);
@@ -1507,10 +1414,6 @@ describe("full pipeline with stripNonLatin", () => {
   });
 
   it("produces pure ASCII for a mixed torture string", () => {
-    // WHOLESALE values throughout: · → -, «done» → <<done>>, ✓ → v, ≠ → =.
-    // The middle dot U+00B7 and the fullwidth colon U+FF1A both land in ASCII
-    // (AnyAscii, then NFKC fold), while the ideographic comma U+3001, the CJK,
-    // the unmapped emoji and the Greek are removed.
     const out = runPipeline(
       "Status — 50%\n· 世界：ok、ok\n· ＡＢＣ 🧠 «done» ✓ αβγ ≠ 1",
     );
@@ -1521,9 +1424,8 @@ describe("full pipeline with stripNonLatin", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Regression tests for the table audit: every case below used to come out of
-  // stripNonLatin with the character silently deleted, which in the ASCII-art
-  // and pricing examples inverted the meaning of the sentence.
+  // Regression: silent deletion inverted sentence meaning ("CI ┌────┐ passed"
+  // rendered as "CI ---- passed").
   // -------------------------------------------------------------------------
 
   it("keeps ASCII-art frames readable instead of collapsing them", () => {
@@ -1536,18 +1438,13 @@ describe("full pipeline with stripNonLatin", () => {
   });
 
   it("keeps shapes readable through the pipeline", () => {
-    // WHOLESALE AnyAscii values: hollow pairs take the same target as filled,
-    // and the large squares take their shortcode names.
     expect(runPipeline("status ● on ○ off ■ □ ⬛ ⬜")).toBe(
       "status * on * off # # :black_large_square: :white_large_square:",
     );
   });
 
   it("isolates the six flags through the pipeline", () => {
-    // One category on, five off: only its entries convert. Unmapped frames
-    // and shapes reach the strip raw and are deleted (outside the keep-set),
-    // while an unmapped em dash survives raw (inside the keep-set) — the
-    // flag, not the strip, is what converts. Measured, not guessed.
+    // One category on, five off: only its entries convert.
     const OFF = {
       punctuation: false,
       frames: false,
@@ -1565,28 +1462,22 @@ describe("full pipeline with stripNonLatin", () => {
   });
 
   it("strips unsubstituted frames and shapes when their flag is off", () => {
-    // With frames off the box drawing reaches the strip unmapped, and Box
-    // Drawing is outside the keep-set, so it is deleted rather than kept.
     expect(runPipeline("┌─┐", { frames: false })).toBe("");
     // Same for shapes: ● is outside the keep-set, so shapes:false deletes it.
     expect(runPipeline("a ● b", { shapes: false })).toBe("a  b");
   });
 
   it("keeps units and legal marks, but drops the euro sign", () => {
-    // WHOLESALE AnyAscii values.
     expect(runPipeline("temp 25℃")).toBe("temp 25C");
     expect(runPipeline("v2 released ™")).toBe("v2 released TM");
     expect(runPipeline("doc № 4")).toBe("doc No 4");
-    // U+20AC is deliberately unmapped (Currency Symbols is outside the 13 open
-    // blocks) and outside the keep-set, so the strip deletes it. £ is in
-    // Latin-1 and survives: the asymmetry is the documented consequence of the
-    // refusal, not an oversight.
+    // U+20AC is deliberately unmapped and outside the keep-set, so the strip
+    // deletes it; £ is in Latin-1 and survives.
     expect(runPipeline("cheapest is €42")).toBe("cheapest is 42");
     expect(runPipeline("total: €100 or £100")).toBe("total: 100 or £100");
   });
 
   it("keeps set relations and operators", () => {
-    // WHOLESALE AnyAscii values: single-char relations.
     expect(runPipeline("set ⊆ {1}")).toBe("set < {1}");
     expect(runPipeline("a ≡ b")).toBe("a = b");
     expect(runPipeline("empty ∅")).toBe("empty 0");
@@ -1603,34 +1494,29 @@ describe("full pipeline with stripNonLatin", () => {
   });
 
   it("deletes the emptied-block characters instead of spelling them out", () => {
-    // 🆕 🤔 🙄 🤝 left the tables, and their blocks are no longer represented, so
-    // with stripNonLatin they are deleted: there is no :shortcode: left to
-    // convert them into.
+    // 🆕 🤔 🙄 🤝 left the tables with their blocks: no :shortcode: remains
+    // to convert them into.
     expect(runPipeline("see 👀 new 🆕 now")).toBe("see :eyes: new  now");
     expect(runPipeline("🤝 deal 🤔 hmm 🙄")).toBe(" deal  hmm ");
   });
 
   it("maps ↵ to < through the full pipeline (no line-structure change)", () => {
-    // WHOLESALE AnyAscii value: U+21B5 is no longer a real newline, so no
-    // entry in any table changes the line structure of the output anymore.
+    // No entry in any table changes the line structure of the output anymore.
     const out = runPipeline("first↵second");
     expect(out).toBe("first<second");
     expect(out.indexOf("\n")).toBe(-1);
   });
 
   it("still strips codepoints outside the open blocks", () => {
-    // WHOLESALE imports only the 13 open blocks, so anything else keeps the
-    // old behaviour: stripped, not approximated. The shade blocks are Block
-    // Elements (U+2580-U+259F); 🤯 is in Emoticons, outside the 13.
+    // Anything else keeps the old behaviour: stripped, not approximated. The
+    // shade blocks are Block Elements (U+2580-U+259F); 🤯 is in Emoticons.
     expect(runPipeline("progress ▓▓▓░░ 50%")).toBe("progress  50%");
     expect(runPipeline("pizza 🤯")).toBe("pizza ");
-    // Empty AnyAscii replacements stay unmapped and are left to the strip:
-    // U+200B (ZWSP) is General Punctuation with an empty replacement upstream.
+    // Empty AnyAscii replacements stay unmapped and are left to the strip.
     expect(runPipeline("a\u200bb")).toBe("ab");
   });
 
   it("maps the previously-refused in-block characters per AnyAscii", () => {
-    // These were declined by the old audit; WHOLESALE imports them.
     expect(runPipeline("target ◉ here")).toBe("target * here");
     expect(runPipeline("integral ∫ f")).toBe("integral S f");
     expect(runPipeline("pizza 🍕")).toBe("pizza :pizza:");
@@ -1638,9 +1524,9 @@ describe("full pipeline with stripNonLatin", () => {
 });
 
 // ---------------------------------------------------------------------------
-// WHOLESALE flip spot-checks: the values the mission calls out by name, plus a
-// cross-section of the families that moved. Every expectation was measured
-// against the compiled build, never guessed.
+// WHOLESALE flip spot-checks: the renamed values plus a cross-section of the
+// families that moved. Every expectation was measured against the compiled
+// build, never guessed.
 // ---------------------------------------------------------------------------
 
 describe("wholesale flips", () => {
@@ -1684,7 +1570,6 @@ describe("wholesale flips", () => {
     for (const [ch, want] of cases) {
       expect(sub(ch), `U+${ch.codePointAt(0)!.toString(16)}`).toBe(want);
     }
-    // The old digraph/word forms are gone.
     expect(sub("≠")).not.toBe("!=");
     expect(sub("∀")).not.toBe("all");
   });
