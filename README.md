@@ -61,7 +61,6 @@ Representative samples — the full tables live in [`src/substitutions.ts`](src/
 |---------|-----------|-------|
 | U+2014  | — | `-` |
 | U+2013  | – | `-` |
-| U+2015  | ― | `-` |
 | U+2026  | … | `...` |
 | U+201C  | “ | '"' |
 | U+201D  | ” | '"' |
@@ -78,13 +77,8 @@ Representative samples — the full tables live in [`src/substitutions.ts`](src/
 | U+2500  | ─ | `-` |
 | U+2502  | │ | `|` |
 | U+250C  | ┌ | `+` |
-| U+2510  | ┐ | `+` |
-| U+2514  | └ | `+` |
 | U+2518  | ┘ | `+` |
 | U+251C  | ├ | `+` |
-| U+2524  | ┤ | `+` |
-| U+252C  | ┬ | `+` |
-| U+2534  | ┴ | `+` |
 | U+253C  | ┼ | `+` |
 | U+2501  | ━ | `-` |
 | U+2503  | ┃ | `|` |
@@ -101,13 +95,8 @@ Representative samples — the full tables live in [`src/substitutions.ts`](src/
 | U+25A1  | □ | `#` |
 | U+25C6  | ◆ | `*` |
 | U+25C7  | ◇ | `*` |
-| U+25CA  | ◊ | `*` |
-| U+25CE  | ◎ | `*` |
-| U+25C9  | ◉ | `*` |
 | U+25E2  | ◢ | `/` |
 | U+25E3  | ◣ | `\` |
-| U+25E4  | ◤ | `/` |
-| U+25E5  | ◥ | `\` |
 | U+2B1B  | ⬛ | `:black_large_square:` |
 | U+2B1C  | ⬜ | `:white_large_square:` |
 
