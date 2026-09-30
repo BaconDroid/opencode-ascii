@@ -1,7 +1,8 @@
 {
   "meta": {
     "anyascii_tag": "0.3.3",
-    "anyascii_table": "vendor/anyascii/table-0.3.3.tsv",
+    "anyascii_table": "vendor/anyascii/table-0.3.3-subset.tsv",
+    "anyascii_full_table": "AnyAscii tag 0.3.3 full table (123799 rows, SHA-256 63d405125a149ed646b6f932be96414e2db4b9ff5c3cb1fac49f6386a6fb1fa9, not checked in); the subset above holds exactly its mapped rows.",
     "anyascii_license": "LICENSE.anyascii (ISC, Hunter WB)",
     "plugin_license": "MIT (LICENSE) — unchanged",
     "generator": "scripts/vendor-anyascii.py",

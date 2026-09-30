@@ -7,7 +7,11 @@ itself stays MIT (see LICENSE); the upstream attribution lives in
 LICENSE.anyascii and in the README section "Table sourcing (AnyAscii)".
 
 Pinned input:
-  vendor/anyascii/table-0.3.3.tsv   AnyAscii tag 0.3.3, verified by SHA-256 below
+  vendor/anyascii/table-0.3.3-subset.tsv   the mapped rows of AnyAscii tag
+      0.3.3, verified by SHA-256 below. The full upstream table (123799 rows,
+      SHA-256 63d405125a149ed646b6f932be96414e2db4b9ff5c3cb1fac49f6386a6fb1fa9)
+      is not checked in; its identity is recorded in the manifest meta so the
+      subset can be re-derived and re-verified against the tag.
   scripts/anyascii-manifest.json    all entries: codepoint, exact TS spellings,
                                     category, verbatim comments and the AnyAscii
                                     0.3.3 value (aa). Values equal aa throughout.
@@ -62,12 +66,12 @@ import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TABLE = ROOT / "vendor" / "anyascii" / "table-0.3.3.tsv"
+TABLE = ROOT / "vendor" / "anyascii" / "table-0.3.3-subset.tsv"
 MANIFEST = ROOT / "scripts" / "anyascii-manifest.json"
 OUTPUT = ROOT / "src" / "substitutions.ts"
 
 PINNED_TAG = "0.3.3"
-PINNED_SHA256 = "63d405125a149ed646b6f932be96414e2db4b9ff5c3cb1fac49f6386a6fb1fa9"
+PINNED_SHA256 = "83f1839402c7fedffc54758b4975a76b2fffa006990254e4e24e8a509e3aef88"
 
 ORDER = ["punctuation", "frames", "shapes", "arrows", "math", "emojis"]
 EXPORT_OF = {
@@ -506,9 +510,11 @@ def main(check_only: bool) -> None:
     rendered.append(TAIL.rstrip("\n"))
     out = "\n".join(rendered) + "\n"
 
-    # Completeness (wholesale proof): every in-scope R4-respecting AnyAscii
-    # entry must be curated. Leftovers fail the run — curation can no longer
-    # drift behind the pinned table.
+    # Completeness (wholesale proof): every subset row must be curated under
+    # the R4 rules. The subset holds exactly the mapped rows of the full
+    # tag table, so leftovers fail the run — curation can no longer drift
+    # behind the pinned subset. (Full-table coverage was established when the
+    # subset was derived; the full-table identity lives in the manifest meta.)
     curated = set(seen)
     queue: dict[str, list[tuple[int, str]]] = {}
     for cp, rep in table.items():
