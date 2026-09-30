@@ -9,20 +9,7 @@ import {
 /**
  * Options accepted by AsciiPlugin.
  *
- * All categories default to `true` (enabled).
- * Set a category to `false` to skip substitution for it.
- *
- * @example
- * // opencode.json — disable emoji and math substitutions
- * {
- *   "plugin": [["opencode-ascii", { "emojis": false, "math": false }]]
- * }
- *
- * @example
- * // opencode.json — keep box-drawing frames raw (no ASCII-art rewrite)
- * {
- *   "plugin": [["opencode-ascii", { "frames": false }]]
- * }
+ * All substitution categories default to `true` (enabled).
  */
 export type AsciiPluginOptions = SubstitutionConfig;
 
@@ -85,11 +72,6 @@ export const AsciiPlugin: Plugin = async (
 
     /**
      * Rewrite file-writing tool arguments before execution.
-     *
-     * Tools handled:
-     *  - `write`       : `args.content`
-     *  - `edit`        : `args.newString` (NOT `oldString` -- it must match existing file content)
-     *  - `apply_patch` : `args.patchText` (unified diff content)
      */
     "tool.execute.before": async (input, output) => {
       switch (input.tool) {

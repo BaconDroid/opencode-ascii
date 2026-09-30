@@ -68,17 +68,13 @@ describe("substitution arrays", () => {
   });
 
   it("supplementary-plane characters are single codepoints (not mis-escaped)", () => {
-    // Every entry whose 'from' side is a supplementary plane character
-    // must have .length === 2 (JS surrogate pair), NOT 3 or more
-    // (which would indicate the \uXXXX mis-encoding concatenated extra chars).
+    // A mis-escaped \u1F680 would be \u1F68 + "0": still 2 units but the
+    // wrong character, so length alone is not enough — the codepoint must
+    // round-trip too.
     for (const [from] of [...PUNCTUATION, ...FRAMES, ...SHAPES, ...ARROWS, ...MATH, ...EMOJIS]) {
       const cp = from.codePointAt(0) ?? 0;
       if (cp > 0xffff) {
-        // Surrogate pair = 2 UTF-16 code units. A mis-escaped \u1F680 would be
-        // \u1F68 (1 unit) + "0" (1 unit) = 2 units but wrong character.
-        // So we also verify the codepoint is actually what we expect.
         expect(from.length).toBe(2); // surrogate pair
-        // Confirm it round-trips correctly
         expect(String.fromCodePoint(cp)).toBe(from);
       }
     }
@@ -106,7 +102,6 @@ describe("buildSubstitutions", () => {
   it("returns all 6 categories by default (empty config)", () => {
     const subs = buildSubstitutions({});
     const fromSet = new Set(subs.map(([k]) => k));
-    // Should contain entries from every category
     expect(fromSet.has("—")).toBe(true); // em dash -- PUNCTUATION
     expect(fromSet.has("┌")).toBe(true); // corner  -- FRAMES
     expect(fromSet.has("●")).toBe(true); // circle  -- SHAPES
@@ -174,7 +169,6 @@ describe("buildSubstitutions", () => {
   });
 
   it("isolates each of the 6 flags (one on, five off)", () => {
-    // Only the enabled category converts; the rest stay raw.
     const OFF = {
       punctuation: false,
       frames: false,
@@ -284,10 +278,7 @@ describe("buildRegex", () => {
   });
 });
 
-/**
- * Parse a character-class source (`[\uXXXX-\uYYYY\uZZZZ...]`) back into the
- * sorted [lo, hi] codepoint ranges it denotes.
- */
+/** Parse a character-class source back into its sorted [lo, hi] ranges. */
 function classRanges(source: string): Array<[number, number]> {
   const inner = source.slice(1, -1);
   const tokens = inner.match(/\\u(\{[0-9a-f]+\}|[0-9a-f]{4})/g) ?? [];
@@ -621,9 +612,8 @@ describe("wholesale table guardrails", () => {
   });
 
   it("every value matches the vendored AnyAscii subset row", () => {
-    // Wholesale proof: vendor/anyascii/table-0.3.3-subset.tsv holds one
-    // AnyAscii 0.3.3 row per mapped codepoint; each table value must equal
-    // its row verbatim, and the row count must equal the table size.
+    // One AnyAscii row per mapped codepoint; each table value must equal its
+    // row verbatim, and the row count must equal the table size.
     const raw = readFileSync(
       join(here, "..", "vendor", "anyascii", "table-0.3.3-subset.tsv"),
       "utf-8",

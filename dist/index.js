@@ -55,11 +55,6 @@ export const AsciiPlugin = async (_ctx, options) => {
         },
         /**
          * Rewrite file-writing tool arguments before execution.
-         *
-         * Tools handled:
-         *  - `write`       : `args.content`
-         *  - `edit`        : `args.newString` (NOT `oldString` -- it must match existing file content)
-         *  - `apply_patch` : `args.patchText` (unified diff content)
          */
         "tool.execute.before": async (input, output) => {
             switch (input.tool) {
