@@ -11,6 +11,12 @@ import { type SubstitutionConfig } from "./substitutions";
  * {
  *   "plugin": [["opencode-ascii", { "emojis": false, "math": false }]]
  * }
+ *
+ * @example
+ * // opencode.json — keep box-drawing frames raw (no ASCII-art rewrite)
+ * {
+ *   "plugin": [["opencode-ascii", { "frames": false }]]
+ * }
  */
 export type AsciiPluginOptions = SubstitutionConfig;
 /**

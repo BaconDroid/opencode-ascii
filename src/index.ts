@@ -17,6 +17,12 @@ import {
  * {
  *   "plugin": [["opencode-ascii", { "emojis": false, "math": false }]]
  * }
+ *
+ * @example
+ * // opencode.json — keep box-drawing frames raw (no ASCII-art rewrite)
+ * {
+ *   "plugin": [["opencode-ascii", { "frames": false }]]
+ * }
  */
 export type AsciiPluginOptions = SubstitutionConfig;
 
@@ -25,6 +31,8 @@ function resolveConfig(options?: PluginOptions): SubstitutionConfig {
   const config: SubstitutionConfig = {};
   if (typeof options["punctuation"] === "boolean")
     config.punctuation = options["punctuation"];
+  if (typeof options["frames"] === "boolean") config.frames = options["frames"];
+  if (typeof options["shapes"] === "boolean") config.shapes = options["shapes"];
   if (typeof options["arrows"] === "boolean") config.arrows = options["arrows"];
   if (typeof options["math"] === "boolean") config.math = options["math"];
   if (typeof options["emojis"] === "boolean") config.emojis = options["emojis"];

@@ -25,7 +25,7 @@ describe("experimental.text.complete hook", () => {
       output,
     );
     expect(output.text).toBe(
-      "The result is != 0 and we use -> to indicate flow.",
+      "The result is = 0 and we use > to indicate flow.",
     );
   });
 
@@ -76,7 +76,7 @@ describe("tool.execute.before: write", () => {
       },
     };
     await hooks["tool.execute.before"]?.(baseInput, output);
-    expect(output.args.content).toBe("value != 0 -> result");
+    expect(output.args.content).toBe("value = 0 > result");
   });
 
   it("substitutes emoji in args.content", async () => {
@@ -150,7 +150,7 @@ describe("tool.execute.before: apply_patch", () => {
       },
     };
     await hooks["tool.execute.before"]?.(baseInput, output);
-    expect(output.args.patchText).toContain("+new -> value");
+    expect(output.args.patchText).toContain("+new > value");
   });
 
   it("does NOT use args.patch (wrong field name)", async () => {
@@ -197,6 +197,8 @@ describe("plugin options", () => {
   it("returns empty hooks when all categories disabled", async () => {
     const hooks = await makeHooks({
       punctuation: false,
+      frames: false,
+      shapes: false,
       arrows: false,
       math: false,
       emojis: false,
@@ -220,5 +222,30 @@ describe("plugin options", () => {
     );
     // Only punctuation substituted; arrows and math left alone
     expect(output.text).toBe("dash - arrow → not-equal ≠");
+  });
+
+  it("isolates frames and shapes through the text hook", async () => {
+    // frames:false + shapes:false leaves frames and shapes raw while
+    // punctuation still substitutes.
+    const hooks = await makeHooks({ frames: false, shapes: false });
+    const output = { text: "box ┌─┐ ball ● dash —" };
+    await hooks["experimental.text.complete"]?.(
+      { sessionID: "s1", messageID: "m1", partID: "p1" },
+      output,
+    );
+    expect(output.text).toBe("box ┌─┐ ball ● dash -");
+  });
+
+  it("registers hooks when only frames is disabled", async () => {
+    // One category off still leaves five on, so the hooks register.
+    const hooks = await makeHooks({ frames: false });
+    expect(hooks["experimental.text.complete"]).toBeDefined();
+    expect(hooks["tool.execute.before"]).toBeDefined();
+  });
+
+  it("registers hooks when only shapes is disabled", async () => {
+    const hooks = await makeHooks({ shapes: false });
+    expect(hooks["experimental.text.complete"]).toBeDefined();
+    expect(hooks["tool.execute.before"]).toBeDefined();
   });
 });

@@ -5,6 +5,10 @@ function resolveConfig(options) {
     const config = {};
     if (typeof options["punctuation"] === "boolean")
         config.punctuation = options["punctuation"];
+    if (typeof options["frames"] === "boolean")
+        config.frames = options["frames"];
+    if (typeof options["shapes"] === "boolean")
+        config.shapes = options["shapes"];
     if (typeof options["arrows"] === "boolean")
         config.arrows = options["arrows"];
     if (typeof options["math"] === "boolean")
