@@ -39,6 +39,12 @@ jobs:
         run: npm publish --dry-run
 
   release:
+    # Manual only. The npm package `opencode-ascii` is owned by d3vv3, and this
+    # fork is not a maintainer, so publishing under that name is refused by the
+    # registry (ENEEDAUTH). Running this on every push would only paint main red.
+    # Dispatch it by hand once the package is publishable again -- e.g. if
+    # upstream hands over the name or transfers maintainer rights.
+    if: github.event_name == 'workflow_dispatch'
     needs: verify
     runs-on: ubuntu-latest
     permissions:

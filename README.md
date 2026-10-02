@@ -22,21 +22,18 @@ Add the package to your `opencode.json`:
 ```
 
 OpenCode resolves the package name itself and installs it via Bun at startup.
-Pin an explicit version if you want to avoid picking up a future major:
 
-```json
-"plugin": ["opencode-ascii@0.2.0"]
-```
-
-The features documented below — the `stripNonLatin` option, the `frames` and
-`shapes` categories, and the `tool.execute.after` hook — require **0.2.0 or
-later**. Earlier releases shipped only part of that surface.
+> **The npm package `opencode-ascii` is owned by [d3vv3](https://github.com/d3vv3/opencode-ascii).**
+> This fork is not a maintainer of it, so it cannot publish under that name and
+> the registry refuses the upload. Everything documented below — the
+> `stripNonLatin` option, the `frames` and `shapes` categories, and the
+> `tool.execute.after` hook — exists only from **0.2.0**, which is **not on npm**.
+> Install from a clone to get it.
 
 ### Installing from a local clone
 
-To track an unreleased working tree, point the plugin at the built entry file
-instead of the package name. `dist/` is committed, so no build step is needed
-as long as you have not edited `src/`:
+Point the plugin at the built entry file instead of the package name. `dist/`
+is committed, so no build step is needed as long as you have not edited `src/`:
 
 ```json
 {
