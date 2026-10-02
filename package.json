@@ -20,6 +20,7 @@
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
+    "verify": "tsc && git diff --exit-code -- dist && vitest run",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
