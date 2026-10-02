@@ -4,45 +4,102 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
-  id-token: write   # Required for OIDC trusted publishing
-  contents: write   # Required to create tags and releases
+  contents: read
 
 jobs:
-  release:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
 
-      - name: Check version change
-        id: version
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # dist/ is committed and is the entry point OpenCode actually loads, so a
+      # dist that has drifted from src silently serves stale code at runtime.
+      - name: Verify dist is in sync with src
+        run: git diff --exit-code -- dist
+
+      - name: Test
+        run: npm test
+
+      # Fails early on a manifest that cannot be packed (bad files globs,
+      # missing entry points) instead of after the tag already exists.
+      - name: Verify the publishable tarball
+        run: npm publish --dry-run
+
+  release:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC trusted publishing
+      contents: write # required to create the tag and the release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # Gate on the registry, not on "did package.json change since the last
+      # commit". The version can already sit in the tree without ever having
+      # reached npm -- which is exactly the case for 0.2.0 -- and a
+      # git-diff gate silently skips those releases.
+      - name: Check whether this version is already published
+        id: gate
         run: |
-          CURRENT=$(node -p "require('./package.json').version")
-          PREV=$(git show HEAD~1:package.json 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version" || echo "")
-          echo "current=$CURRENT" >> $GITHUB_OUTPUT
-          if [ "$CURRENT" != "$PREV" ]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if npm view "opencode-ascii@$VERSION" version >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "$VERSION is already on npm -- nothing to publish."
           else
-            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "$VERSION is not on npm -- publishing."
           fi
 
+      # Publish BEFORE tagging. If OIDC trusted publishing is not configured on
+      # the registry side, this step fails while the tree is still clean, so a
+      # retry is a no-op. Tagging first would strand a v<version> tag and a
+      # GitHub release for a version that never shipped, and npm forbids
+      # republishing that version number afterwards.
+      - name: Publish to npm
+        if: steps.gate.outputs.publish == 'true'
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ""
+
       - name: Create tag
-        if: steps.version.outputs.changed == 'true'
+        if: steps.gate.outputs.publish == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "v${{ steps.version.outputs.current }}"
-          git push origin "v${{ steps.version.outputs.current }}"
+          git tag "v${{ steps.gate.outputs.version }}"
+          git push origin "v${{ steps.gate.outputs.version }}"
 
       - name: Create GitHub release
-        if: steps.version.outputs.changed == 'true'
+        if: steps.gate.outputs.publish == 'true'
         uses: actions/github-script@v7
         with:
           script: |
-            const version = '${{ steps.version.outputs.current }}';
+            const version = '${{ steps.gate.outputs.version }}';
             await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -50,27 +107,3 @@ jobs:
               name: `v${version}`,
               generate_release_notes: true,
             });
-
-      - uses: actions/setup-node@v4
-        if: steps.version.outputs.changed == 'true'
-        with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Install dependencies
-        if: steps.version.outputs.changed == 'true'
-        run: npm ci
-
-      - name: Build
-        if: steps.version.outputs.changed == 'true'
-        run: npm run build --if-present
-
-      - name: Test
-        if: steps.version.outputs.changed == 'true'
-        run: npm test --if-present
-
-      - name: Publish to npm
-        if: steps.version.outputs.changed == 'true'
-        run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ""

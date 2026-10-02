@@ -21,7 +21,38 @@ Add the package to your `opencode.json`:
 }
 ```
 
-OpenCode will install the package automatically via Bun at startup.
+OpenCode resolves the package name itself and installs it via Bun at startup.
+Pin an explicit version if you want to avoid picking up a future major:
+
+```json
+"plugin": ["opencode-ascii@0.2.0"]
+```
+
+The features documented below — the `stripNonLatin` option, the `frames` and
+`shapes` categories, and the `tool.execute.after` hook — require **0.2.0 or
+later**. Earlier releases shipped only part of that surface.
+
+### Installing from a local clone
+
+To track an unreleased working tree, point the plugin at the built entry file
+instead of the package name. `dist/` is committed, so no build step is needed
+as long as you have not edited `src/`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    ["/absolute/path/to/opencode-ascii/dist/index.js", { "stripNonLatin": true }]
+  ]
+}
+```
+
+If you do edit `src/`, rebuild before restarting OpenCode — the plugin is
+loaded from `dist/`, and OpenCode will not rebuild it for you:
+
+```sh
+npm run build
+```
 
 ## Configuration
 
