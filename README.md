@@ -364,25 +364,6 @@ subset row left uncurated (completeness).
 Licence: AnyAscii is **ISC** (Hunter WB) — see `LICENSE.anyascii`. The plugin
 itself stays **MIT** (see `LICENSE`).
 
-### What is deliberately not mapped
-
-With WHOLESALE sourcing, the tables capture every non-empty AnyAscii
-replacement inside the 13 open blocks. What is still absent is absent because
-it is *excluded*, not overlooked:
-
-- **Everything outside the 13 open blocks** — Emoticons (U+1F600-U+1F64F),
-  Enclosed Alphanumerics/Supplement, Supplemental Symbols and Pictographs,
-  Block Elements (shade blocks `░ ▒ ▓`), Currency Symbols, every script block
-  and the rest. This is the guardrail: a block is only ever entered with two or
-  more entries, and no new block opens.
-- **Latin letters** — the Latin-1 exception above.
-- **Discord-style `:shortcode:` labels** — dropped wholesale (the exclusion rule
-  above).
-- **Empty AnyAscii replacements** — the strip handles them.
-
-There is no longer a hand-picked "ambiguous, so refused" list: `∓` `∛` `⊗` `◉`
-and the appearance-based symbols are mapped to their AnyAscii forms.
-
 ### Open blocks only
 
 The tables are filled block by block, never opened for a new one: a block is
@@ -391,6 +372,11 @@ saturates the 13 blocks that were already in play without opening a fourteenth,
 which is why Emoticons, Enclosed Alphanumeric Supplement, Supplemental Symbols
 and Pictographs and Currency Symbols remain absent. The generator enforces both
 the 13-block set and the ≥2-per-block invariant on every run.
+
+What is absent is absent because it is *excluded* (see
+[What is never imported](#what-is-never-imported)), not overlooked. There is no
+hand-picked "ambiguous, so refused" list: `∓` `∛` `⊗` `◉` and the
+appearance-based symbols map to their AnyAscii forms.
 
 See [`src/substitutions.ts`](src/substitutions.ts) for the authoritative list.
 
