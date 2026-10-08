@@ -7,27 +7,40 @@ itself stays MIT (see LICENSE); the upstream attribution lives in
 LICENSE.anyascii and in the README section "Table sourcing (AnyAscii)".
 
 Pinned input:
-  vendor/anyascii/table-0.3.3-subset.tsv   the 2606 mapped rows of AnyAscii
-      tag 0.3.3, verified by SHA-256 below. This file is the vendored
-      reference: --check recoups every table value against it.
+  vendor/anyascii/table-0.3.3-subset.tsv   the 1712 mapped non-:shortcode:
+      rows of AnyAscii tag 0.3.3, verified by SHA-256 below. This file is the
+      vendored reference: --check recoups every table value against it.
 
 Provenance, recorded (not verified — the file is not checked in):
   AnyAscii tag 0.3.3, full table 123799 rows, SHA-256 pinned in
-  FULL_TABLE_SHA256 below. The subset holds exactly the mapped rows.
+  FULL_TABLE_SHA256 below. The subset holds the mapped rows minus the
+  :shortcode: targets (rule 4).
+
+RE-VENDORING NOTE — read before bumping the AnyAscii tag or re-syncing the
+subset. The upstream AnyAscii table maps many symbols and emoji to Discord-style
+:shortcode: labels (:rocket:, :thumbsup:, :black_large_square:). Those mappings
+were dropped by decision: a label reads as injected prose and the plugin's job
+is transliteration, not emoji naming. The subset is therefore NOT a straight
+slice of upstream — it is upstream filtered through the exclusion rules below.
+If you pull a newer AnyAscii release, regenerate the full table, re-filter it
+with the same rules and re-pin PINNED_SHA256, PINNED_COUNTS and
+FULL_TABLE_SHA256/ROWS in this file; do not copy the raw mapped rows. The
+shortcode filter is `^:[a-z0-9_]+:$` against the replacement value.
 
 Exclusion rules — a table entry is NEVER accepted when:
   1. it transliterates Latin (anything in U+00A0-U+036F; mapping e.g.
      `e` -> `e` would corrupt accented text),
-  2. it transliterates a script (Greek, Cyrillic, Arabic, Hebrew, CJK, kana,
-     Hangul, Thai, Devanagari, ... — never romanised here),
-  3. its block is outside the 13 already open (no block is ever opened;
+  2. its block is outside the 13 already open (no block is ever opened;
      see the scope guardrail in tests/substitutions.test.ts),
-  4. its AnyAscii replacement is the empty string (there is nothing to map),
-  5. it is the euro sign U+20AC (explicit decision: no "EUR" spelling).
+  3. its AnyAscii replacement is the empty string (there is nothing to map),
+  4. its AnyAscii replacement is a Discord-style :shortcode: label
+     (`^:[a-z0-9_]+:$`) — dropped wholesale, not transliterated.
 
-  Rules 2 and 5 are vacuous by construction — none of the 13 open blocks is a
-  script block and Currency Symbols is not among them — and this script
-  asserts every rule on every run.
+  Rule 2 subsumes scripts: no script block (Greek, Cyrillic, Arabic, Hebrew,
+  CJK, kana, Hangul, Thai, Devanagari, ...) is among the 13 open ones, so a
+  script entry is refused as an out-of-scope block. The currency sign, emoji
+  blocks and every other unopened block are refused the same way — no per-block
+  carve-out is needed. This script asserts every rule on every run.
 
   Category placement is pinned by count only (see PINNED_COUNTS): General
   Punctuation + Letterlike Symbols in punctuation, Box Drawing in frames,
@@ -36,9 +49,8 @@ Exclusion rules — a table entry is NEVER accepted when:
   Symbols + Miscellaneous Symbols and Pictographs + Miscellaneous Technical
   + Transport and Map in emojis.
 
-Assumed (documented, not upstream): the :shortcode: names treated as
-Discord-style labels, the category placement above, and the frames/shapes
-split itself.
+Assumed (documented, not upstream): dropping every :shortcode: label, the
+category placement above, and the frames/shapes split itself.
 
 Usage:
   python3 scripts/vendor-anyascii.py [--check]
@@ -53,9 +65,10 @@ Usage:
 Exit status is non-zero on any verification failure: subset hash drift, a
 per-category count drift, a spelling that decodes elsewhere, a non-ASCII
 target, a duplicate key, a scope violation (<2 entries per block, unknown
-block, 13-block drift), a Latin letter or script entry, the euro sign, a
-table value that differs from the subset row, or a subset row missing from
-the tables (completeness: every subset row must be curated).
+block, 13-block drift), a Latin letter, a :shortcode: label (rule 4), a
+table value that differs from the subset row,
+or a subset row missing from the tables (completeness: every subset row must
+be curated).
 """
 
 from __future__ import annotations
@@ -71,7 +84,7 @@ TABLE = ROOT / "vendor" / "anyascii" / "table-0.3.3-subset.tsv"
 OUTPUT = ROOT / "src" / "substitutions.ts"
 
 PINNED_TAG = "0.3.3"
-PINNED_SHA256 = "83f1839402c7fedffc54758b4975a76b2fffa006990254e4e24e8a509e3aef88"
+PINNED_SHA256 = "8434affee4afc13ecbafae8fccbb0885351eeb34f990693944bc674ee8e221e0"
 FULL_TABLE_SHA256 = "63d405125a149ed646b6f932be96414e2db4b9ff5c3cb1fac49f6386a6fb1fa9"
 FULL_TABLE_ROWS = 123799
 
@@ -87,11 +100,14 @@ EXPORT_OF = {
 PINNED_COUNTS = {
     "punctuation": 172,
     "frames": 128,
-    "shapes": 89,
-    "arrows": 377,
+    "shapes": 81,
+    "arrows": 362,
     "math": 260,
-    "emojis": 1580,
+    "emojis": 709,
 }
+
+# Rule 6: Discord-style label targets are dropped wholesale, never curated.
+SHORTCODE = re.compile(r":[a-z0-9_]+:")
 
 # The 13 open blocks. Nothing outside this set may appear in the tables.
 OPEN_BLOCKS = {
@@ -168,31 +184,6 @@ def block_of(cp: int) -> str:
         if lo <= cp <= hi:
             return name
     return f"unlisted (U+{cp:04X})"
-
-
-# Script ranges for exclusion rule 2. No table entry may come from these;
-# the check below asserts it on every run.
-SCRIPT_RANGES = [
-    (0x0370, 0x03FF, "Greek and Coptic"),
-    (0x0400, 0x04FF, "Cyrillic"),
-    (0x0500, 0x052F, "Cyrillic Supplement"),
-    (0x0590, 0x05FF, "Hebrew"),
-    (0x0600, 0x06FF, "Arabic"),
-    (0x0900, 0x097F, "Devanagari"),
-    (0x0E00, 0x0E7F, "Thai"),
-    (0x3040, 0x309F, "Hiragana"),
-    (0x30A0, 0x30FF, "Katakana"),
-    (0x3100, 0x312F, "Bopomofo"),
-    (0x3130, 0x318F, "Hangul Compatibility Jamo"),
-    (0x3400, 0x4DBF, "CJK Extension A"),
-    (0x4E00, 0x9FFF, "CJK Unified"),
-    (0xAC00, 0xD7AF, "Hangul Syllables"),
-    (0x20000, 0x2A6DF, "CJK Extension B"),
-]
-
-
-def in_scripts(cp: int) -> bool:
-    return any(lo <= cp <= hi for lo, hi, _ in SCRIPT_RANGES)
 
 
 def ts_decode(body: str) -> str:
@@ -284,6 +275,12 @@ def load_table() -> dict[int, str]:
 def main(check_only: bool) -> None:
     table = load_table()
     errors: list[str] = []
+    short_rows = sorted(cp for cp, v in table.items() if SHORTCODE.fullmatch(v))
+    if short_rows:
+        errors.append(
+            "subset still holds :shortcode: rows (rule 4): "
+            + ", ".join(f"U+{cp:04X}" for cp in short_rows[:20])
+        )
 
     text = OUTPUT.read_text(encoding="utf-8")
     lines = text.split("\n")
@@ -368,7 +365,7 @@ def main(check_only: bool) -> None:
                     out_lines[idx] = new_line
                     synced += 1
                     target = actual
-            # 4. no duplicate key, block in scope, never a script, never Latin
+            # 3. no duplicate key, block in scope, never Latin, no :shortcode:
             if cp in seen:
                 errors.append(
                     f"U+{cp:04X}: duplicate of {seen[cp]} (last writer would win)"
@@ -378,12 +375,10 @@ def main(check_only: bool) -> None:
             per_block[blk] = per_block.get(blk, 0) + 1
             if blk not in OPEN_BLOCKS:
                 errors.append(f"U+{cp:04X}: opens a new block ({blk})")
-            if in_scripts(cp):
-                errors.append(f"U+{cp:04X}: transliterates a script ({blk})")
             if 0x00A0 <= cp <= 0x036F and unicodedata.category(chr(cp)).startswith("L"):
                 errors.append(f"U+{cp:04X}: transliterates a Latin letter")
-            if cp == 0x20AC:
-                errors.append("U+20AC: euro sign must stay unmapped")
+            if SHORTCODE.fullmatch(target):
+                errors.append(f"U+{cp:04X}: :shortcode: label target (rule 4)")
             n += 1
         counts[cat] = n
         if n != PINNED_COUNTS[cat]:

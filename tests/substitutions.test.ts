@@ -65,17 +65,14 @@ describe("substitution arrays", () => {
     }
   });
 
-  it("rocket emoji 🚀 is correctly encoded in EMOJIS", () => {
-    const rocket = EMOJIS.find(([k]) => k === "🚀");
-    expect(rocket).toBeDefined();
-    expect(rocket![0]).toBe("🚀");
-    expect(rocket![1]).toBe(":rocket:");
-  });
-
-  it("light bulb emoji 💡 is correctly encoded in EMOJIS", () => {
-    const bulb = EMOJIS.find(([k]) => k === "💡");
-    expect(bulb).toBeDefined();
-    expect(bulb![0]).toBe("💡");
+  it("drops emoji whose only AnyAscii value was a :shortcode: label", () => {
+    // 🚀 -> :rocket: and 💡 -> :bulb: upstream. A label is not a
+    // transliteration, so rule 6 in scripts/vendor-anyascii.py drops them and
+    // they stay unmapped. No EMOJIS value may be a :shortcode: at all.
+    const keys = EMOJIS.map(([from]) => from);
+    expect(keys).not.toContain("🚀");
+    expect(keys).not.toContain("💡");
+    expect(EMOJIS.every(([, to]) => !/^:[a-z0-9_]+:$/.test(to))).toBe(true);
   });
 });
 
@@ -92,21 +89,21 @@ describe("buildSubstitutions", () => {
     expect(fromSet.has("●")).toBe(true); // black circle -- SHAPES
     expect(fromSet.has("→")).toBe(true); // arrow ->  ARROWS
     expect(fromSet.has("≠")).toBe(true); // !=        MATH
-    expect(fromSet.has("🚀")).toBe(true); // 🚀       EMOJIS
+    expect(fromSet.has("✓")).toBe(true); // check     EMOJIS
   });
 
   it("has the AnyAscii-sourced per-category counts", () => {
     // Pinned so a silent add or remove is visible in the diff. WHOLESALE
-    // AnyAscii 0.3.3: every value is upstream verbatim across the 13 open
-    // blocks — punctuation 172, frames 128, shapes 89, arrows 377, math 260,
-    // emojis 1580, total 2606.
+    // AnyAscii 0.3.3, minus every :shortcode: target (rule 4): every value is
+    // upstream verbatim across the 13 open blocks — punctuation 172, frames
+    // 128, shapes 81, arrows 362, math 260, emojis 709, total 1712.
     expect(PUNCTUATION.length).toBe(172);
     expect(FRAMES.length).toBe(128);
-    expect(SHAPES.length).toBe(89);
-    expect(ARROWS.length).toBe(377);
+    expect(SHAPES.length).toBe(81);
+    expect(ARROWS.length).toBe(362);
     expect(MATH.length).toBe(260);
-    expect(EMOJIS.length).toBe(1580);
-    expect(buildSubstitutions({}).length).toBe(2606);
+    expect(EMOJIS.length).toBe(709);
+    expect(buildSubstitutions({}).length).toBe(1712);
   });
 
   it("respects punctuation: false", () => {
@@ -155,7 +152,7 @@ describe("buildSubstitutions", () => {
   it("respects emojis: false", () => {
     const subs = buildSubstitutions({ emojis: false });
     const fromSet = new Set(subs.map(([k]) => k));
-    expect(fromSet.has("🚀")).toBe(false);
+    expect(fromSet.has("✓")).toBe(false);
     expect(fromSet.has("—")).toBe(true);
   });
 
@@ -196,14 +193,14 @@ describe("buildRegex", () => {
     expect("launch 🚀 now".match(regex)).not.toBeNull();
   });
 
-  it("coalesces the full table into 23 pinned ranges", () => {
-    // The performance cliff this locks: an alternation of all 2606 entries
+  it("coalesces the full table into 125 pinned ranges", () => {
+    // The performance cliff this locks: an alternation of all 1712 entries
     // pushes V8 onto the interpreter (measured 648 ms per 100 KB of matching
     // text vs 0.5 ms as a class, byte-identical output), while a class
     // compiles to a range table. These bounds are the contract — a table edit
     // that opens a gap or a new run must update them deliberately.
     const ranges = classRanges(buildRegex(buildSubstitutions({})).source);
-    expect(ranges.length).toBe(23);
+    expect(ranges.length).toBe(125);
     expect(ranges).toEqual([
       [0x00a0, 0x00a1],
       [0x00ab, 0x00ac],
@@ -217,17 +214,119 @@ describe("buildRegex", () => {
       [0x2010, 0x2029],
       [0x202f, 0x205f],
       [0x2100, 0x214f],
-      [0x2190, 0x23ff],
+      [0x2190, 0x2193],
+      [0x219a, 0x21a8],
+      [0x21ab, 0x2319],
+      [0x231c, 0x2327],
+      [0x2329, 0x23ce],
+      [0x23d0, 0x23e8],
+      [0x23f4, 0x23f7],
+      [0x23fb, 0x23ff],
       [0x2500, 0x257f],
-      [0x25a0, 0x27bf],
-      [0x2b00, 0x2b73],
+      [0x25a0, 0x25a9],
+      [0x25ac, 0x25b5],
+      [0x25b7, 0x25bf],
+      [0x25c1, 0x25fa],
+      [0x25ff, 0x25ff],
+      [0x2605, 0x260d],
+      [0x260f, 0x2610],
+      [0x2612, 0x2613],
+      [0x2616, 0x2617],
+      [0x2619, 0x261c],
+      [0x261e, 0x261f],
+      [0x2621, 0x2621],
+      [0x2624, 0x2625],
+      [0x2627, 0x2629],
+      [0x262b, 0x262d],
+      [0x2630, 0x2637],
+      [0x263b, 0x263f],
+      [0x2641, 0x2641],
+      [0x2643, 0x2647],
+      [0x2654, 0x265e],
+      [0x2661, 0x2662],
+      [0x2664, 0x2664],
+      [0x2667, 0x2667],
+      [0x2669, 0x267a],
+      [0x267c, 0x267d],
+      [0x2680, 0x2691],
+      [0x2698, 0x2698],
+      [0x269a, 0x269a],
+      [0x269d, 0x269f],
+      [0x26a2, 0x26a6],
+      [0x26a8, 0x26a9],
+      [0x26ac, 0x26af],
+      [0x26b2, 0x26bc],
+      [0x26bf, 0x26c3],
+      [0x26c6, 0x26c7],
+      [0x26c9, 0x26cd],
+      [0x26d0, 0x26d0],
+      [0x26d2, 0x26d2],
+      [0x26d5, 0x26e8],
+      [0x26eb, 0x26ef],
+      [0x26f6, 0x26f6],
+      [0x26fb, 0x26fc],
+      [0x26fe, 0x2701],
+      [0x2703, 0x2704],
+      [0x2706, 0x2707],
+      [0x270e, 0x270e],
+      [0x2710, 0x2711],
+      [0x2713, 0x2713],
+      [0x2715, 0x2715],
+      [0x2717, 0x271c],
+      [0x271e, 0x2720],
+      [0x2722, 0x2727],
+      [0x2729, 0x2732],
+      [0x2735, 0x2743],
+      [0x2745, 0x2746],
+      [0x2748, 0x274b],
+      [0x274d, 0x274d],
+      [0x274f, 0x2752],
+      [0x2756, 0x2756],
+      [0x2758, 0x2762],
+      [0x2765, 0x2794],
+      [0x2798, 0x27a0],
+      [0x27a2, 0x27af],
+      [0x27b1, 0x27be],
+      [0x2b00, 0x2b04],
+      [0x2b08, 0x2b1a],
+      [0x2b1d, 0x2b4f],
+      [0x2b51, 0x2b54],
+      [0x2b56, 0x2b73],
       [0x2b76, 0x2b95],
       [0x2b97, 0x2bff],
-      [0x1f300, 0x1f3fa],
-      [0x1f400, 0x1f5ff],
-      [0x1f680, 0x1f6d7],
-      [0x1f6dc, 0x1f6ec],
-      [0x1f6f0, 0x1f6fc],
+      [0x1f322, 0x1f323],
+      [0x1f394, 0x1f395],
+      [0x1f398, 0x1f398],
+      [0x1f39c, 0x1f39d],
+      [0x1f3f1, 0x1f3f2],
+      [0x1f3f6, 0x1f3f6],
+      [0x1f4fe, 0x1f4fe],
+      [0x1f53e, 0x1f548],
+      [0x1f54f, 0x1f54f],
+      [0x1f568, 0x1f56e],
+      [0x1f571, 0x1f572],
+      [0x1f57b, 0x1f586],
+      [0x1f588, 0x1f589],
+      [0x1f58e, 0x1f58f],
+      [0x1f591, 0x1f594],
+      [0x1f597, 0x1f5a3],
+      [0x1f5a6, 0x1f5a7],
+      [0x1f5a9, 0x1f5b0],
+      [0x1f5b3, 0x1f5bb],
+      [0x1f5bd, 0x1f5c1],
+      [0x1f5c5, 0x1f5d0],
+      [0x1f5d4, 0x1f5db],
+      [0x1f5df, 0x1f5e0],
+      [0x1f5e2, 0x1f5e2],
+      [0x1f5e4, 0x1f5e7],
+      [0x1f5e9, 0x1f5ee],
+      [0x1f5f0, 0x1f5f2],
+      [0x1f5f4, 0x1f5f9],
+      [0x1f6c6, 0x1f6ca],
+      [0x1f6d3, 0x1f6d4],
+      [0x1f6e6, 0x1f6e8],
+      [0x1f6ea, 0x1f6ea],
+      [0x1f6f1, 0x1f6f2],
     ]);
   });
 
@@ -244,8 +343,8 @@ describe("buildRegex", () => {
   it("leaves characters outside the class unmatched", () => {
     const subs = buildSubstitutions({});
     const regex = buildRegex(subs);
-    // None of these sits inside the 23 ranges above.
-    for (const ch of ["A", "é", "€", "世", "🧠", "🫠", "\u0000"]) {
+    // None of these sits inside the 125 ranges above.
+    for (const ch of ["A", "é", "λ", "世", "🧠", "🫠", "\u0000"]) {
       expect(ch.match(regex)).toBeNull();
     }
   });
@@ -358,11 +457,11 @@ describe("stripNonLatinChars", () => {
   // -------------------------------------------------------------------
   // Block allowlist: what is KEPT
   //   U+0000-U+007F  Basic Latin / ASCII
-  //   U+00A0-U+00FF  Latin-1 Supplement
+  //   U+00A0-U+024F  Latin-1 Supplement, Latin Extended-A, Latin Extended-B
   //   U+2000-U+200A, U+2010-U+2027, U+2030-U+205E  General Punctuation
   //                   minus the invisible/format characters
-  // plus an NFKC fold of U+FF00-U+FFEF before the strip.
-  // Everything else is deleted.
+  // Everything else is deleted, IPA Extensions, Spacing Modifier Letters,
+  // Combining Diacritical Marks and the fullwidth/halfwidth block included.
   // -------------------------------------------------------------------
 
   it("keeps the whole ASCII block U+0000-U+007F", () => {
@@ -372,14 +471,12 @@ describe("stripNonLatinChars", () => {
     }
   });
 
-  it("keeps the six Latin blocks in one contiguous range U+00A0-U+036F", () => {
-    // Latin-1 Supplement (U+00A0-U+00FF), Latin Extended-A (U+0100-U+017F),
-    // Latin Extended-B (U+0180-U+024F), IPA Extensions (U+0250-U+02AF),
-    // Spacing Modifier Letters (U+02B0-U+02FF) and Combining Diacritical
-    // Marks (U+0300-U+036F) are consecutive blocks, so a single range covers
-    // all six. This sweep checks every codepoint in that range, so a future
-    // edit that moves a boundary cannot slip through.
-    for (let c = 0xa0; c <= 0x36f; c++) {
+  it("keeps the three Latin blocks in one contiguous range U+00A0-U+024F", () => {
+    // Latin-1 Supplement (U+00A0-U+00FF), Latin Extended-A (U+0100-U+017F) and
+    // Latin Extended-B (U+0180-U+024F) are consecutive blocks, so a single
+    // range covers all three. This sweep checks every codepoint in that range,
+    // so a future edit that moves a boundary cannot slip through.
+    for (let c = 0xa0; c <= 0x24f; c++) {
       const ch = String.fromCharCode(c);
       expect(stripNonLatinChars(`a${ch}b`), `U+${c.toString(16)}`).toBe(
         `a${ch}b`,
@@ -387,12 +484,14 @@ describe("stripNonLatinChars", () => {
     }
   });
 
-  it("strips everything from U+0370 up to U+1FFF (the hole after the Latin blocks)", () => {
+  it("strips everything from U+0250 up to U+1FFF (the hole after the Latin blocks)", () => {
+    expect(stripNonLatinChars("aɐb")).toBe("ab"); // U+0250 IPA Extensions
+    expect(stripNonLatinChars("aʰb")).toBe("ab"); // U+02B0 Spacing Modifier Letters
+    expect(stripNonLatinChars("a\u0300b")).toBe("ab"); // U+0300 Combining Diacritical Marks
     expect(stripNonLatinChars("aͰb")).toBe("ab"); // U+0370 Greek and Coptic
     expect(stripNonLatinChars("aαb")).toBe("ab"); // U+03B1 Greek
     expect(stripNonLatinChars("aПb")).toBe("ab"); // U+041F Cyrillic
     expect(stripNonLatinChars("a√b")).toBe("ab"); // U+221A, just below GP
-    expect(stripNonLatinChars("a€b")).toBe("ab"); // U+20AC currency sign
     expect(stripNonLatinChars("a█b")).toBe("ab"); // U+2588 full block
   });
 
@@ -418,31 +517,36 @@ describe("stripNonLatinChars", () => {
     expect(stripNonLatinChars("ĂȘŐ ș ț")).toBe("ĂȘŐ ș ț");
   });
 
-  it("keeps IPA Extensions (U+0250-U+02AF)", () => {
-    expect(stripNonLatinChars("ə ɛ ɔ ŋ ʁ")).toBe("ə ɛ ɔ ŋ ʁ");
-    expect(stripNonLatinChars("ɸʃʔ")).toBe("ɸʃʔ");
-    // θ U+03B8 and χ U+03C7 look like IPA but live in the Greek block, above
-    // the kept range, so they go.
+  it("removes IPA Extensions (U+0250-U+02AF)", () => {
+    expect(stripNonLatinChars("əɛɔʁ")).toBe("");
+    expect(stripNonLatinChars("ɸʃʔ")).toBe("");
+    // ASCII spaces between removed letters survive.
+    expect(stripNonLatinChars("ə ɛ")).toBe(" ");
+    // ŋ (U+014B) looks like IPA but is Latin Extended-A, so it stays.
+    expect(stripNonLatinChars("ŋ")).toBe("ŋ");
+    // θ U+03B8 and χ U+03C7 also look like IPA but live in the Greek block,
+    // above the removed range, so they go too.
     expect(stripNonLatinChars("aθb")).toBe("ab");
     expect(stripNonLatinChars("aχb")).toBe("ab");
   });
 
-  it("keeps Spacing Modifier Letters (U+02B0-U+02FF)", () => {
-    expect(stripNonLatinChars("ʰ ʷ ʻ")).toBe("ʰ ʷ ʻ");
-    expect(stripNonLatinChars("ʼˈˌˇːˆ")).toBe("ʼˈˌˇːˆ");
+  it("removes Spacing Modifier Letters (U+02B0-U+02FF)", () => {
+    expect(stripNonLatinChars("ʰʷʻ")).toBe("");
+    expect(stripNonLatinChars("ʼˈˌˇːˆ")).toBe("");
   });
 
-  it("keeps Combining Diacritical Marks (U+0300-U+036F), so decomposed text survives", () => {
+  it("removes Combining Diacritical Marks (U+0300-U+036F), so decomposed text degrades to its base", () => {
     // "e" + COMBINING ACUTE ACCENT, written with explicit \uXXXX escapes so the
     // decomposed form is unambiguous regardless of how this file is encoded.
-    expect(stripNonLatinChars("e\u0301")).toBe("e\u0301");
-    expect(stripNonLatinChars("e\u0301").length).toBe(2);
+    expect(stripNonLatinChars("e\u0301")).toBe("e");
+    expect(stripNonLatinChars("e\u0301").length).toBe(1);
+    // A precomposed é (U+00E9) lives in Latin-1 and still survives untouched.
     expect(stripNonLatinChars("\u00e9")).toBe("\u00e9");
     expect(stripNonLatinChars("\u00e9").length).toBe(1);
-    expect(stripNonLatinChars("a\u0300")).toBe("a\u0300"); // grave
-    expect(stripNonLatinChars("a\u0302")).toBe("a\u0302"); // circumflex
-    expect(stripNonLatinChars("a\u0327")).toBe("a\u0327"); // cedilla
-    expect(stripNonLatinChars("a\u036f")).toBe("a\u036f"); // U+036F
+    expect(stripNonLatinChars("a\u0300")).toBe("a"); // grave
+    expect(stripNonLatinChars("a\u0302")).toBe("a"); // circumflex
+    expect(stripNonLatinChars("a\u0327")).toBe("a"); // cedilla
+    expect(stripNonLatinChars("a\u036f")).toBe("a"); // U+036F
   });
 
   it("keeps General Punctuation (U+2000-U+206F minus the invisible runs)", () => {
@@ -497,7 +601,7 @@ describe("stripNonLatinChars", () => {
     }
   });
 
-  it("strips marks above the Combining Diacritical Marks block", () => {
+  it("strips superscript and subscript digits above the kept blocks", () => {
     expect(stripNonLatinChars("a⁰")).toBe("a"); // U+2070 superscript zero
     expect(stripNonLatinChars("a₀")).toBe("a"); // U+2080 subscript zero
   });
@@ -564,7 +668,6 @@ describe("stripNonLatinChars", () => {
     expect(stripNonLatinChars("a─b")).toBe("ab"); // U+2500 box drawing
     expect(stripNonLatinChars("a│b")).toBe("ab"); // U+2502 box drawing vertical
     expect(stripNonLatinChars("a►b")).toBe("ab"); // U+25BA pointer
-    expect(stripNonLatinChars("a€b")).toBe("ab"); // U+20AC euro sign
     expect(stripNonLatinChars("a█b")).toBe("ab"); // U+2588 full block
   });
 
@@ -577,32 +680,32 @@ describe("stripNonLatinChars", () => {
   });
 
   // -------------------------------------------------------------------
-  // The NFKC fold of U+FF00-U+FFEF, which runs before the strip
+  // Out-of-scope block: fullwidth and halfwidth forms U+FF00-U+FFEF
   // -------------------------------------------------------------------
 
-  it("folds fullwidth forms to their ASCII base instead of deleting them", () => {
-    // No substitution category covers the fullwidth block; folding beats a
-    // dry delete because NFKC maps every codepoint in it onto real ASCII.
-    expect(stripNonLatinChars("ＡＢＣ")).toBe("ABC"); // fullwidth A B C
-    expect(stripNonLatinChars("１２３")).toBe("123"); // fullwidth digits
-    expect(stripNonLatinChars("！？")).toBe("!?"); // fullwidth ! ?
-    expect(stripNonLatinChars("Ｈｅｌｌｏ")).toBe("Hello");
-    expect(stripNonLatinChars("（ABC）")).toBe("(ABC)");
-    expect(stripNonLatinChars("（丸）")).toBe("()");
-    expect(stripNonLatinChars("aＡb")).toBe("aAb"); // inline, mixed blocks
+  it("deletes fullwidth forms instead of folding them", () => {
+    // The fullwidth/halfwidth block U+FF00-U+FFEF is outside both the
+    // substitution blocks and the kept blocks, so it is deleted like any other
+    // out-of-scope character. Surrounding ASCII is untouched.
+    expect(stripNonLatinChars("ＡＢＣ")).toBe(""); // fullwidth A B C
+    expect(stripNonLatinChars("１２３")).toBe(""); // fullwidth digits
+    expect(stripNonLatinChars("！？")).toBe(""); // fullwidth ! ?
+    expect(stripNonLatinChars("Ｈｅｌｌｏ")).toBe("");
+    expect(stripNonLatinChars("（ABC）")).toBe("ABC");
+    expect(stripNonLatinChars("aＡb")).toBe("ab"); // inline, mixed
   });
 
-  it("removes halfwidth katakana (folds to Katakana, which is then stripped)", () => {
-    // NFKC expands halfwidth katakana to fullwidth katakana (kept by no
-    // block) and the voiced mark to U+3099 (likewise), so nothing remains.
+  it("removes halfwidth katakana", () => {
+    // Halfwidth katakana (U+FF66-U+FF9D) and the halfwidth voiced mark
+    // (U+FF9E) sit in the deleted fullwidth/halfwidth block.
     expect(stripNonLatinChars("ｱｲｳ")).toBe(""); // ｱｲｳ
     expect(stripNonLatinChars("ｶﾞ")).toBe(""); // ｶ + halfwidth voiced mark
   });
 
-  it("does not recompose or alter text outside the fullwidth block", () => {
-    // Only matched U+FF00-U+FFEF runs are normalised; the rest passes through
-    // byte for byte.
-    expect(stripNonLatinChars("\u00e9Ａ")).toBe("\u00e9A");
+  it("does not alter text outside the fullwidth block", () => {
+    // Only out-of-scope characters are deleted; a kept Latin-1 letter passes
+    // through byte for byte.
+    expect(stripNonLatinChars("\u00e9Ａ")).toBe("\u00e9");
     expect(stripNonLatinChars("\u00e9\u00e9")).toBe("\u00e9\u00e9");
   });
 
@@ -620,17 +723,16 @@ describe("stripNonLatinChars", () => {
     expect(stripNonLatinChars(once)).toBe(once);
   });
 
-  it("only ever deletes: the output is a subsequence of the folded input", () => {
+  it("only ever deletes: the output is a subsequence of the input", () => {
     // The strip must never introduce a character the input did not already
-    // contain (outside the documented U+FF00-U+FFEF fold). Guards against
-    // creep towards substituting here instead of in the tables.
+    // contain. Guards against creep towards substituting here instead of in
+    // the tables.
     const input = "a—b≠c→d🚀eＡf«g»h＋i🧠j";
-    const folded = input.replace(/[\uFF00-\uFFEF]+/g, (r) => r.normalize("NFKC"));
     const out = stripNonLatinChars(input);
 
     let i = 0;
     for (const ch of out) {
-      const at = folded.indexOf(ch, i);
+      const at = input.indexOf(ch, i);
       expect(at, `character ${JSON.stringify(ch)} not found in order`).toBeGreaterThanOrEqual(0);
       i = at + 1;
     }
@@ -640,13 +742,15 @@ describe("stripNonLatinChars", () => {
     const out = stripNonLatinChars(
       "hello 世界、。、「」『』《》〈〉【】・ ＡＢＣ １２３ ｱｲｳ 🧠 🫠 🎉 Привет مرحبا",
     );
-    expect(out).toBe("hello  ABC 123      ");
+    // Only "hello" and the ASCII/ideographic spaces survive; the fullwidth
+    // forms are deleted with the rest.
+    expect(out).toBe("hello" + " ".repeat(9));
     // Nothing outside the allowlist survives, except the U+3000 ideographic
     // space and ASCII spaces.
     for (const ch of out) {
       const c = ch.codePointAt(0)!;
       const allowed =
-        c <= 0x7f || (c >= 0xa0 && c <= 0x36f) || (c >= 0x2000 && c <= 0x200a) ||
+        c <= 0x7f || (c >= 0xa0 && c <= 0x24f) || (c >= 0x2000 && c <= 0x200a) ||
         (c >= 0x2010 && c <= 0x2027) || (c >= 0x2030 && c <= 0x205e);
       expect(allowed, `unexpected surviving codepoint U+${c.toString(16)}`).toBe(true);
     }
@@ -663,10 +767,10 @@ describe("full pipeline", () => {
     const map = new Map<string, string>(subs);
     const regex = buildRegex(subs);
 
-    const input = "dash — frame ┌ shape ● arrow → not-equal ≠ rocket 🚀";
+    const input = "dash — frame ┌ shape ● arrow → not-equal ≠ check ✓";
     regex.lastIndex = 0;
     const result = applySubstitutions(input, regex, map);
-    expect(result).toBe("dash - frame + shape * arrow > not-equal = rocket :rocket:");
+    expect(result).toBe("dash - frame + shape * arrow > not-equal = check v");
   });
 
   it("PUNCTUATION: covers the most common cases", () => {
@@ -742,8 +846,6 @@ describe("full pipeline", () => {
       ["\u25CB", "*"], // white circle (○)
       ["\u25A0", "#"], // black square (■)
       ["\u25A1", "#"], // white square (□)
-      ["\u2B1B", ":black_large_square:"], // black large square (⬛)
-      ["\u2B1C", ":white_large_square:"], // white large square (⬜)
     ];
 
     for (const [unicode, ascii] of cases) {
@@ -766,7 +868,7 @@ describe("full pipeline", () => {
     const cases: [string, string][] = [
       ["→", ">"], // rightwards arrow
       ["←", "<"], // leftwards arrow
-      ["↔", ":left_right_arrow:"], // left right arrow
+      ["↚", "<"], // leftwards arrow with stroke
       ["⇒", ">"], // rightwards double arrow
       ["▼", "v"], // black down-pointing triangle
       ["▲", "^"], // black up-pointing triangle
@@ -836,18 +938,14 @@ describe("audit additions", () => {
     for (const [unicode, ascii] of cases) expect(sub(unicode)).toBe(ascii);
   });
 
-  it("ARROWS: hooks, return-to-line, rotation and dashed variants", () => {
+  it("ARROWS: return-to-line, rotation and dashed variants", () => {
     const cases: Array<[string, string]> = [
-      ["↩", ":leftwards_arrow_with_hook:"], // leftwards arrow with hook
-      ["↪", ":arrow_right_hook:"], // rightwards arrow with hook
       ["↺", "<"], // anticlockwise open circle arrow
       ["↻", ">"], // clockwise open circle arrow
       ["⇠", "<"], // leftwards dashed arrow
       ["⇢", ">"], // rightwards dashed arrow
       ["➜", ">"], // heavy round-tipped rightwards arrow
       ["➤", ">"], // black rightwards arrowhead
-      ["▶", ":arrow_forward:"], // black right-pointing triangle
-      ["◀", ":arrow_backward:"], // black left-pointing triangle
     ];
     for (const [unicode, ascii] of cases) expect(sub(unicode)).toBe(ascii);
   });
@@ -899,15 +997,7 @@ describe("audit additions", () => {
     expect(sub("v2 released ™")).toBe("v2 released TM");
   });
 
-  it("PUNCTUATION: the euro sign is deliberately NOT mapped", () => {
-    // € -> "EUR" was refused: spelled out, the letters read as injected prose
-    // while a bare number is already unambiguous once the sign is dropped.
-    expect(sub("€")).toBe("€");
-    expect(sub("cheapest is €42")).toBe("cheapest is €42");
-    for (const table of [PUNCTUATION, FRAMES, SHAPES, ARROWS, MATH, EMOJIS]) {
-      expect(table.map(([from]) => from)).not.toContain("€");
-    }
-    // neighbouring Letterlike marks follow AnyAscii now
+  it("PUNCTUATION: Letterlike units and marks follow AnyAscii", () => {
     expect(sub("∑")).toBe("S");
     expect(sub("√")).toBe("sqrt");
     expect(sub("∈")).toBe("E");
@@ -915,20 +1005,14 @@ describe("audit additions", () => {
     expect(sub("™")).toBe("TM");
   });
 
-  it("EMOJIS: the high-frequency dev-chat set", () => {
-    const cases: Array<[string, string]> = [
-      ["✨", ":sparkles:"], // sparkles
-      ["👀", ":eyes:"], // eyes
-      ["🎯", ":dart:"], // direct hit
-      ["🔑", ":key:"], // key
-      ["📌", ":pushpin:"], // round pushpin
-      ["🔍", ":mag:"], // left-pointing magnifying glass
-      ["⏰", ":alarm_clock:"], // alarm clock
-    ];
-    for (const [unicode, ascii] of cases) {
-      expect(sub(unicode), `U+${unicode.codePointAt(0)!.toString(16)}`).toBe(ascii);
+  it("EMOJIS: shortcode-only dev-chat emoji stay unmapped", () => {
+    // Every one of these mapped to a :shortcode: upstream; rule 4 drops those
+    // targets, so the characters are simply not in the table.
+    const cases = ["✨", "👀", "🎯", "🔑", "📌", "🔍", "⏰"];
+    for (const ch of cases) {
+      expect(sub(ch), `U+${ch.codePointAt(0)!.toString(16)}`).toBe(ch);
     }
-    expect(sub("deployed ✨ see 👀")).toBe("deployed :sparkles: see :eyes:");
+    expect(sub("deployed ✨ see 👀")).toBe("deployed ✨ see 👀");
   });
 
   it("EMOJIS: the block singletons were removed, not padded", () => {
@@ -947,9 +1031,9 @@ describe("audit additions", () => {
   });
 
   it("respects the category flags for the new entries", () => {
-    expect(sub("✔", { emojis: false })).toBe("✔"); // ✔ is an EMOJIS entry
-    expect(sub("✔")).toBe(":heavy_check_mark:");
-    expect(sub("✨", { emojis: false })).toBe("✨");
+    expect(sub("✓", { emojis: false })).toBe("✓"); // ✓ is an EMOJIS entry
+    expect(sub("✓")).toBe("v");
+    expect(sub("☒", { emojis: false })).toBe("☒");
     expect(sub("⊆", { math: false })).toBe("⊆");
     expect(sub("∀", { math: false })).toBe("∀");
     expect(sub("┌", { frames: false })).toBe("┌"); // ┌ is a FRAMES entry
@@ -957,8 +1041,8 @@ describe("audit additions", () => {
     expect(sub("●", { shapes: false })).toBe("●"); // ● is a SHAPES entry
     expect(sub("●", { punctuation: false })).toBe("*"); // not punctuation's
     expect(sub("№", { punctuation: false })).toBe("№");
-    expect(sub("▶", { arrows: false })).toBe("▶");
-    expect(sub("↩", { arrows: false })).toBe("↩");
+    expect(sub("⇄", { arrows: false })).toBe("⇄");
+    expect(sub("⇠", { arrows: false })).toBe("⇠");
   });
 
   it("introduces no duplicate key across the six tables", () => {
@@ -1025,11 +1109,6 @@ describe("open-block extensions", () => {
     ["℗", "(P)"], // sound recording copyright
   ];
 
-  const SHAPES_ADDED: Array<[string, string]> = [
-    ["⬛", ":black_large_square:"], // black large square (WHOLESALE)
-    ["⬜", ":white_large_square:"], // white large square (WHOLESALE)
-  ];
-
   const ARROWS_ADDED: Array<[string, string]> = [
     ["⇄", "="], // rightwards arrow over leftwards arrow
     ["⇆", "="], // leftwards arrow over rightwards arrow
@@ -1061,12 +1140,6 @@ describe("open-block extensions", () => {
     ["☐", "#"], // ballot box (WHOLESALE)
     ["☒", "x"], // ballot box with x (WHOLESALE)
   ];
-
-  it("SHAPES: the emoji-scale square twins", () => {
-    for (const [unicode, ascii] of SHAPES_ADDED) {
-      expect(sub(unicode), unicode).toBe(ascii);
-    }
-  });
 
   it("PUNCTUATION: Latin-1 and General Punctuation", () => {
     for (const [unicode, ascii] of PUNCTUATION_ADDED) {
@@ -1111,9 +1184,9 @@ describe("open-block extensions", () => {
     }
   });
 
-  it("leaves no non-ASCII behind for any of the 35 added characters", () => {
-    const added = [...PUNCTUATION_ADDED, ...SHAPES_ADDED, ...ARROWS_ADDED, ...MATH_ADDED, ...EMOJIS_ADDED];
-    expect(added).toHaveLength(35);
+  it("leaves no non-ASCII behind for any of the 33 added characters", () => {
+    const added = [...PUNCTUATION_ADDED, ...ARROWS_ADDED, ...MATH_ADDED, ...EMOJIS_ADDED];
+    expect(added).toHaveLength(33);
     const dirty = added
       .filter(([unicode]) => /[^\x20-\x7E\n]/.test(pipeline(unicode)))
       .map(([unicode]) => "U+" + unicode.codePointAt(0)!.toString(16).toUpperCase());
@@ -1128,17 +1201,17 @@ describe("open-block extensions", () => {
       ["─", "frames", "-"],
       ["┏", "frames", "+"],
       ["●", "shapes", "*"],
-      ["⬜", "shapes", ":white_large_square:"],
+      ["▢", "shapes", "#"],
       ["◆", "shapes", "*"],
       ["⇑", "arrows", "^"],
       ["▽", "arrows", "v"],
       ["⬌", "arrows", "-"],
-      ["↕", "arrows", ":arrow_up_down:"],
+      ["⇄", "arrows", "="],
       ["≦", "math", "<="],
       ["∥", "math", "||"],
       ["∫", "math", "S"],
       ["☒", "emojis", "x"],
-      ["🍕", "emojis", ":pizza:"],
+      ["☐", "emojis", "#"],
       ["⌘", "emojis", "#"],
     ];
     for (const [unicode, category, ascii] of owned) {
@@ -1174,8 +1247,7 @@ describe("open-block extensions", () => {
       shapeBlocks.set(b, (shapeBlocks.get(b) ?? 0) + 1);
     }
     expect([...shapeBlocks.entries()].sort()).toEqual([
-      ["Geometric Shapes", 87],
-      ["Miscellaneous Symbols and Arrows", 2],
+      ["Geometric Shapes", 81],
     ]);
   });
 });
@@ -1294,21 +1366,21 @@ describe("scope invariant: no block is represented by a single entry", () => {
     expect(byBlock.has("Supplemental Symbols and Pictographs")).toBe(false);
   });
 
-  it("covers 13 blocks with 2606 entries", () => {
+  it("covers 13 blocks with 1712 entries", () => {
     // Pinned so an accidental add or remove is visible in the diff. The block
     // count stays at 13 because WHOLESALE only fills the open blocks — Latin
-    // letters, scripts, out-of-scope blocks, empty replacements and the euro
+    // letters, out-of-scope blocks, empty replacements and :shortcode: labels
     // never enter.
     const byBlock = entriesByBlock();
     expect(byBlock.size).toBe(13);
     const total = [...byBlock.values()].reduce((n, chars) => n + chars.length, 0);
-    expect(total).toBe(2606);
+    expect(total).toBe(1712);
     expect(PUNCTUATION.length).toBe(172);
     expect(FRAMES.length).toBe(128);
-    expect(SHAPES.length).toBe(89);
-    expect(ARROWS.length).toBe(377);
+    expect(SHAPES.length).toBe(81);
+    expect(ARROWS.length).toBe(362);
     expect(MATH.length).toBe(260);
-    expect(EMOJIS.length).toBe(1580);
+    expect(EMOJIS.length).toBe(709);
   });
 
   it("matches every value to the vendored AnyAscii subset row", () => {
@@ -1352,26 +1424,23 @@ describe("full pipeline with stripNonLatin", () => {
     return stripNonLatinChars(applySubstitutions(text, regex, map));
   }
 
-  it("keeps mapped emoji as ASCII :shortcode: and strips the unmapped ones", () => {
-    expect(runPipeline("launch 🚀 to 🧠 the 🫠 finish")).toBe(
-      "launch :rocket: to  the  finish",
+  it("keeps mapped emoji as ASCII and strips the unmapped ones", () => {
+    expect(runPipeline("launch ✓ to 🧠 the 🫠 finish")).toBe(
+      "launch v to  the  finish",
     );
   });
 
-  it("keeps every :shortcode: label intact, whatever emoji produced it", () => {
-    // Substitution emits pure ASCII, so the strip removes the original
-    // codepoint, never the label it became.
-    const labelled = [
+  it("strips emoji whose only upstream value was a :shortcode: label", () => {
+    // Every one of these was mapped to a :shortcode: upstream. With those
+    // targets dropped, substitution leaves the codepoint and the strip deletes
+    // it, so nothing stands in for it.
+    const stripped = [
       "🚀", "🔥", "✅", "❌", "⚠", "⭐", "📝", "🔒", "📁", "👍",
       "🎉", "💡", "🧠", "🫠", "🤯", "🦄",
-    ].map((ch) => runPipeline(`x ${ch} y`));
-    for (const out of labelled) {
-      expect(out, JSON.stringify(out)).toMatch(/^x [\x20-\x7E]* y$/);
+    ];
+    for (const ch of stripped) {
+      expect(runPipeline(`x ${ch} y`), JSON.stringify(ch)).toBe("x  y");
     }
-    expect(runPipeline("x 🚀 y")).toBe("x :rocket: y");
-    expect(runPipeline("x 🎉 y")).toBe("x :tada: y");
-    expect(runPipeline("x 🧠 y")).toBe("x  y");
-    expect(runPipeline("x 🫠 y")).toBe("x  y");
   });
 
   it("substitutes curated punctuation before stripping, so no word breaks", () => {
@@ -1380,9 +1449,9 @@ describe("full pipeline with stripNonLatin", () => {
     expect(runPipeline("wait — «ready» now")).toBe("wait - <<ready>> now");
   });
 
-  it("folds fullwidth letters before the strip sees them", () => {
-    expect(runPipeline("ＡＢＣ ok")).toBe("ABC ok");
-    expect(runPipeline("Ｈｅｌｌｏ — Ｗ")).toBe("Hello - W");
+  it("deletes fullwidth forms before the strip sees them", () => {
+    expect(runPipeline("ＡＢＣ ok")).toBe(" ok");
+    expect(runPipeline("Ｈｅｌｌｏ — Ｗ")).toBe(" - ");
   });
 
   it("strips CJK punctuation in a sentence", () => {
@@ -1393,13 +1462,12 @@ describe("full pipeline with stripNonLatin", () => {
     expect(runPipeline("Café déjà vu — naïve 42")).toBe("Café déjà vu - naïve 42");
   });
 
-  it("keeps decomposed Latin as decomposed, accent intact", () => {
+  it("strips a decomposed combining mark but keeps the precomposed letter", () => {
     // Written with explicit \uXXXX escapes so the intent survives any editor
     // or tooling that would recompose one spelling into the other.
     const decomposed = runPipeline("cafe\u0301"); // c a f e + COMBINING ACUTE
-    expect(decomposed).toBe("cafe\u0301");
-    expect(decomposed.length).toBe(5);
-    expect(decomposed.codePointAt(4)).toBe(0x301);
+    expect(decomposed).toBe("cafe");
+    expect(decomposed.length).toBe(4);
 
     const precomposed = runPipeline("caf\u00e9"); // c a f + U+00E9
     expect(precomposed).toBe("caf\u00e9");
@@ -1407,10 +1475,10 @@ describe("full pipeline with stripNonLatin", () => {
     expect(precomposed.codePointAt(3)).toBe(0xe9);
   });
 
-  it("keeps Latin Extended, IPA and spacing modifiers end to end", () => {
+  it("keeps Latin Extended but removes IPA and spacing modifiers end to end", () => {
     expect(runPipeline("Łódź — ā œ")).toBe("Łódź - ā œ");
-    expect(runPipeline("ə ɛ ɔ ŋ ʁ")).toBe("ə ɛ ɔ ŋ ʁ");
-    expect(runPipeline("ʰ ʷ ʻ")).toBe("ʰ ʷ ʻ");
+    expect(runPipeline("əɛɔʁ")).toBe("");
+    expect(runPipeline("ʰʷʻ")).toBe("");
   });
 
   it("produces pure ASCII for a mixed torture string", () => {
@@ -1418,7 +1486,7 @@ describe("full pipeline with stripNonLatin", () => {
       "Status — 50%\n· 世界：ok、ok\n· ＡＢＣ 🧠 «done» ✓ αβγ ≠ 1",
     );
     expect(out).toBe(
-      "Status - 50%\n- :okok\n- ABC  <<done>> v  = 1",
+      "Status - 50%\n- okok\n-   <<done>> v  = 1",
     );
     expect(/^[\x20-\x7E\n]*$/.test(out)).toBe(true);
   });
@@ -1438,8 +1506,8 @@ describe("full pipeline with stripNonLatin", () => {
   });
 
   it("keeps shapes readable through the pipeline", () => {
-    expect(runPipeline("status ● on ○ off ■ □ ⬛ ⬜")).toBe(
-      "status * on * off # # :black_large_square: :white_large_square:",
+    expect(runPipeline("status ● on ○ off ■ □")).toBe(
+      "status * on * off # #",
     );
   });
 
@@ -1467,14 +1535,13 @@ describe("full pipeline with stripNonLatin", () => {
     expect(runPipeline("a ● b", { shapes: false })).toBe("a  b");
   });
 
-  it("keeps units and legal marks, but drops the euro sign", () => {
+  it("keeps units and legal marks", () => {
     expect(runPipeline("temp 25℃")).toBe("temp 25C");
     expect(runPipeline("v2 released ™")).toBe("v2 released TM");
     expect(runPipeline("doc № 4")).toBe("doc No 4");
-    // U+20AC is deliberately unmapped and outside the keep-set, so the strip
-    // deletes it; £ is in Latin-1 and survives.
-    expect(runPipeline("cheapest is €42")).toBe("cheapest is 42");
-    expect(runPipeline("total: €100 or £100")).toBe("total: 100 or £100");
+    // The pound sign is Latin-1 and survives; out-of-scope currency like ₹ is
+    // deleted by the strip.
+    expect(runPipeline("total: ₹100 or £100")).toBe("total: 100 or £100");
   });
 
   it("keeps set relations and operators", () => {
@@ -1486,17 +1553,16 @@ describe("full pipeline with stripNonLatin", () => {
     expect(runPipeline("wait ⋯ done")).toBe("wait - done");
   });
 
-  it("keeps the audit-added emoji as shortcodes", () => {
-    expect(runPipeline("shipped ✨ see 👀")).toBe("shipped :sparkles: see :eyes:");
-    expect(runPipeline("aim 🎯 with 🔑")).toBe("aim :dart: with :key:");
-    expect(runPipeline("📌 note 🔍 search")).toBe(":pushpin: note :mag: search");
-    expect(runPipeline("⏰ time")).toBe(":alarm_clock: time");
+  it("strips the shortcode-only dev-chat emoji", () => {
+    expect(runPipeline("shipped ✨ see 👀")).toBe("shipped  see ");
+    expect(runPipeline("aim 🎯 with 🔑")).toBe("aim  with ");
+    expect(runPipeline("📌 note 🔍 search")).toBe(" note  search");
+    expect(runPipeline("⏰ time")).toBe(" time");
   });
 
   it("deletes the emptied-block characters instead of spelling them out", () => {
-    // 🆕 🤔 🙄 🤝 left the tables with their blocks: no :shortcode: remains
-    // to convert them into.
-    expect(runPipeline("see 👀 new 🆕 now")).toBe("see :eyes: new  now");
+    // 🆕 🤔 🙄 🤝 left the tables with their blocks.
+    expect(runPipeline("see 👀 new 🆕 now")).toBe("see  new  now");
     expect(runPipeline("🤝 deal 🤔 hmm 🙄")).toBe(" deal  hmm ");
   });
 
@@ -1519,7 +1585,6 @@ describe("full pipeline with stripNonLatin", () => {
   it("maps the previously-refused in-block characters per AnyAscii", () => {
     expect(runPipeline("target ◉ here")).toBe("target * here");
     expect(runPipeline("integral ∫ f")).toBe("integral S f");
-    expect(runPipeline("pizza 🍕")).toBe("pizza :pizza:");
   });
 });
 
@@ -1543,16 +1608,12 @@ describe("wholesale flips", () => {
     expect(sub("→")).not.toBe("->");
     expect(sub("≠")).toBe("="); // was "!="
     expect(sub("≠")).not.toBe("!=");
-    expect(sub("👍")).toBe(":thumbsup:"); // was ":+1:"
-    expect(sub("👎")).toBe(":thumbsdown:"); // was ":-1:"
   });
 
   it("arrows follow appearance, not the old convention", () => {
     const cases: Array<[string, string]> = [
       ["⇄", "="], ["⇆", "="], ["⬌", "-"], ["↺", "<"], ["↻", ">"],
       ["⇠", "<"], ["⇢", ">"], ["➔", ">"], ["➜", ">"], ["➤", ">"],
-      ["↔", ":left_right_arrow:"], ["▶", ":arrow_forward:"],
-      ["↕", ":arrow_up_down:"], ["↩", ":leftwards_arrow_with_hook:"],
     ];
     for (const [ch, want] of cases) {
       expect(sub(ch), `U+${ch.codePointAt(0)!.toString(16)}`).toBe(want);
@@ -1592,21 +1653,16 @@ describe("wholesale flips", () => {
       ["┏", "+"], ["┓", "+"], ["┗", "+"], ["┛", "+"], ["╬", "+"],
       ["╌", "-"], ["║", "|"],
       ["○", "*"], ["□", "#"], ["◆", "*"], ["◉", "*"], ["◢", "/"], ["◣", "\\"],
-      ["⬛", ":black_large_square:"], ["⬜", ":white_large_square:"],
-      ["▪", ":black_small_square:"], ["▫", ":white_small_square:"],
     ];
     for (const [ch, want] of cases) {
       expect(sub(ch), `U+${ch.codePointAt(0)!.toString(16)}`).toBe(want);
     }
   });
 
-  it("emoji shortcodes are Discord-style throughout", () => {
+  it("emoji follow AnyAscii where the value is not a :shortcode:", () => {
     const cases: Array<[string, string]> = [
-      ["✓", "v"], ["✔", ":heavy_check_mark:"], ["❎", ":negative_squared_cross_mark:"],
-      ["ℹ", "i"], ["★", "*"], ["☆", "*"],
-      ["📝", ":pencil:"], ["🐞", ":lady_beetle:"], ["📱", ":mobile_phone:"],
-      ["📧", ":e_mail:"], ["☐", "#"], ["☒", "x"], ["🍕", ":pizza:"],
-      ["⌘", "#"], ["⌚", ":watch:"], ["☕", ":coffee:"],
+      ["✓", "v"], ["ℹ", "i"], ["★", "*"], ["☆", "*"],
+      ["☐", "#"], ["☒", "x"], ["⌘", "#"],
     ];
     for (const [ch, want] of cases) {
       expect(sub(ch), `U+${ch.codePointAt(0)!.toString(16)}`).toBe(want);
@@ -1626,7 +1682,5 @@ describe("wholesale flips", () => {
     for (const ch of ["█", "░", "▒", "▓"]) {
       expect(sub(ch), ch).toBe(ch);
     }
-    // The euro sign.
-    expect(sub("€")).toBe("€");
   });
 });

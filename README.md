@@ -76,9 +76,9 @@ All six substitution categories are **enabled by default**. Disable any category
 | `punctuation` | boolean | `true`  | Em/en dashes, ellipsis, curly/smart quotes   |
 | `frames`      | boolean | `true`  | Box-drawing frames `┌─┐` → `+-+`, `─` → `-` |
 | `shapes`      | boolean | `true`  | Geometric shapes `●` → `*`, `■` → `#`      |
-| `arrows`      | boolean | `true`  | `→` → `>`, `←` → `<`, `↔` → `:left_right_arrow:`, etc. |
+| `arrows`      | boolean | `true`  | `→` → `>`, `←` → `<`, `⇄` → `=`, etc.       |
 | `math`        | boolean | `true`  | `≠` → `=`, `≤` → `<=`, `×` → `*`, etc.   |
-| `emojis`      | boolean | `true`  | Emoji → `:shortcode:` labels (Discord-style; 1580 entries) |
+| `emojis`      | boolean | `true`  | Emoji and symbols → ASCII (`✓` → `v`, `☐` → `#`; 709 entries) |
 | `stripNonLatin` | boolean | `false` | Strip non-Latin-script characters from AI text responses and tool results (never from files) |
 
 ### stripNonLatin
@@ -91,14 +91,14 @@ Within an AI text part or a tool result it runs as a second pass, *after* the
 substitutions above:
 
 ```
-substitute (punctuation/frames/shapes/arrows/math/emojis)  ->  NFKC-fold U+FF00-U+FFEF  ->  strip everything outside the allowlisted blocks
+substitute (punctuation/frames/shapes/arrows/math/emojis)  ->  strip everything outside the allowlisted blocks
 ```
 
 **That order is load-bearing.** The strip **only ever deletes** — it never
-rewrites a character into another one. Turning `—` into `-` or `🚀` into
-`:rocket:` is the sole job of the six tables, which run first. So in the real pipeline the em dash is already `-` and
-the mapped emoji is already an ASCII `:shortcode:` by the time the strip sees
-the text, and nothing the tables produce can be caught by it. Only what
+rewrites a character into another one. Turning `—` into `-` or `✓` into `v` is
+the sole job of the six tables, which run first. So in the real pipeline the em
+dash is already `-` and the mapped emoji is already ASCII by the time the strip
+sees the text, and nothing the tables produce can be caught by it. Only what
 substitution did not recognise reaches the strip.
 
 #### What it keeps
@@ -114,17 +114,17 @@ script filter leaked exactly the characters this feature exists to remove.
 | 2 | Latin-1 Supplement            | U+00A0-U+00FF  | `é` `ç` `ñ` `ø` `ß` `«»` `±` `×` `÷` |
 | 3 | Latin Extended-A              | U+0100-U+017F  | `ł` `č` `š` `ž` `ā` `Ł` `œ` `Ă`  |
 | 4 | Latin Extended-B              | U+0180-U+024F  | `Ș` `Ő` `ș` `ț` `Ț`              |
-| 5 | IPA Extensions                | U+0250-U+02AF  | `ə` `ɛ` `ɔ` `ŋ` `ʁ` `ʃ` `ʔ`      |
-| 6 | Spacing Modifier Letters      | U+02B0-U+02FF  | `ʰ` `ʷ` `ʻ` `ˈ` `ˌ` `ː` `ˆ`      |
-| 7 | Combining Diacritical Marks   | U+0300-U+036F  | U+0300-U+036F (combining accents) |
-| 8 | General Punctuation (1 of 3)  | U+2000-U+200A  | en/em spaces                      |
-| 9 | General Punctuation (2 of 3)  | U+2010-U+2027  | `—` `–` `…` `“”` `‘’` `•` `′` `″` `†` `‹›` `‰` |
-|10 | General Punctuation (3 of 3)  | U+2030-U+205E  | `⁃`                               |
+| 5 | General Punctuation (1 of 3)  | U+2000-U+200A  | en/em spaces                      |
+| 6 | General Punctuation (2 of 3)  | U+2010-U+2027  | `—` `–` `…` `“”` `‘’` `•` `′` `″` `†` `‹›` `‰` |
+| 7 | General Punctuation (3 of 3)  | U+2030-U+205E  | `⁃`                               |
 
-**Blocks 2 to 7 are consecutive, so they collapse into a single range
-U+00A0-U+036F** — each block starts at exactly the codepoint after the previous
+**Blocks 2 to 4 are consecutive, so they collapse into a single range
+U+00A0-U+024F** — each block starts at exactly the codepoint after the previous
 one ends. Basic Latin is *not* adjacent to them (the C1 gap separates it), so
-the allowlist is five ranges, not one, with exactly three holes.
+the allowlist is five ranges, not one, with exactly three holes. IPA
+Extensions, Spacing Modifier Letters and Combining Diacritical Marks
+(U+0250-U+036F) continue the run numerically but are **not** kept; see
+[What it removes](#what-it-removes).
 
 #### The two exclusions
 
@@ -144,9 +144,14 @@ Everything else is deleted.
 
 #### What it removes
 
+- **IPA Extensions, Spacing Modifier Letters and Combining Diacritical Marks**
+  (U+0250-U+036F) — the three blocks that continue the Latin run numerically
+  but are not kept. IPA letters (`ə` `ʃ` `ʔ`) and modifier letters (`ʰ` `ː`)
+  are deleted, not transliterated, and a combining mark is deleted leaving its
+  base: `e` + U+0301 becomes `e`. A precomposed `é` in Latin-1 is untouched.
 - **Every other script** — Greek, Cyrillic, Arabic, Hebrew, CJK, kana, Hangul,
   Thai, Devanagari, … Greek and Coptic starts at U+0370, immediately above the
-  last kept Latin block.
+  removed U+0250-U+036F run.
 - **The C1 controls** U+0080-U+009F, as above.
 - **CJK punctuation** (U+3000-U+303F, U+30FB): `、` `。` `「」` `『』` `《》`
   `〈〉` `【】` `・`, and the ideographic space.
@@ -154,35 +159,22 @@ Everything else is deleted.
   is what removes the last of the emoji residue: an emoji ZWJ sequence like
   👨‍👩‍👧 is deleted completely, and `⚠️` loses its variation selector U+FE0F,
   rather than leaving bare zero-width joiners behind.
-- **Every emoji not in an open block.** The emoji table covers 1580 characters;
-  the Emoticons, Enclosed Alphanumeric Supplement and Supplemental Symbols and
-  Pictographs blocks stay out, so those reach the strip raw. In the pipeline the
-  mapped ones have already become ASCII `:shortcode:`, so what the strip deletes
-  is the original codepoint, never the label it turned into. With
-  `emojis: false, stripNonLatin: true` *all* raw emoji are removed.
+- **Emoji and symbols not in an open block.** The emoji table covers 709
+  characters after every `:shortcode:` target was dropped (see
+  [Table sourcing](#table-sourcing-anyascii)). Emoji that only ever mapped to a
+  label — `🚀` `🔥` `✅` `👍` … — are now unmapped, so substitution leaves them
+  and the strip deletes them. The Emoticons, Enclosed Alphanumeric Supplement
+  and Supplemental Symbols and Pictographs blocks stay out for the same reason.
+  With `emojis: false, stripNonLatin: true` *all* raw emoji are removed.
 - **Symbols and operators** outside the kept blocks and outside the 13 open
   ones — `█` (Block Elements), the shade blocks, the C1 controls — because
   substitution now maps everything the open blocks contain and the strip takes
   the rest. Superscript and subscript digits (U+2070, U+2080) are in a later
   block and go too, unlike U+00B2 `²`, which is in Latin-1 and stays.
-- **The euro sign `€`** — deliberately unmapped (see
-  [Table sourcing](#table-sourcing-anyascii)), so the strip removes it.
-
-#### The one fold: fullwidth and halfwidth forms
-
-U+FF00-U+FFEF is the single deliberate exception, and it is a **fold, not a
-substitution**. No category covers the fullwidth block — none of the six
-substitution tables has anything to say about it — and NFKC maps every
-codepoint in it onto a real ASCII counterpart, so folding is strictly better
-than a dry delete and loses no information:
-
-```
-ＡＢＣ -> ABC     １２３ -> 123     ！？ -> !?
-ｱｲｳ -> (removed: folds to katakana, which is in no kept block)
-```
-
-Only the matched runs are normalised, so text elsewhere keeps its exact bytes:
-a precomposed `é` in Latin-1 is passed through byte for byte.
+- **Fullwidth and halfwidth forms** U+FF00-U+FFEF — outside both the
+  substitution blocks and the kept blocks, so they are deleted like any other
+  out-of-scope character. `ＡＢＣ` becomes `` (empty), not `ABC`; the block is
+  never folded.
 
 #### What it never touches
 
@@ -199,7 +191,7 @@ This holds across both file hooks: `tool.execute.before` never substitutes past
 
 ## Substitution reference
 
-2606 entries across thirteen Unicode blocks in six categories, every value the AnyAscii 0.3.3 replacement verbatim. Each category can be disabled independently; see [Configuration](#configuration). The tables below are exhaustive — every row is a substitution the plugin applies. For provenance and the exclusion rules, see [Table sourcing (AnyAscii)](#table-sourcing-anyascii).
+1712 entries across thirteen Unicode blocks in six categories, every value the AnyAscii 0.3.3 replacement verbatim except the `:shortcode:` labels, which are dropped wholesale. Each category can be disabled independently; see [Configuration](#configuration). The tables below are exhaustive — every row is a substitution the plugin applies. For provenance and the exclusion rules, see [Table sourcing (AnyAscii)](#table-sourcing-anyascii).
 
 ### Punctuation (172)
 
@@ -231,7 +223,7 @@ This holds across both file hooks: `tool.execute.before` never substitutes past
 | U+2550  | ═ | `-` |
 | U+2551  | ║ | `|` |
 
-### Shapes (89)
+### Shapes (81)
 
 | Unicode | Character | ASCII |
 |---------|-----------|-------|
@@ -243,10 +235,8 @@ This holds across both file hooks: `tool.execute.before` never substitutes past
 | U+25C7  | ◇ | `*` |
 | U+25E2  | ◢ | `/` |
 | U+25E3  | ◣ | `\` |
-| U+2B1B  | ⬛ | `:black_large_square:` |
-| U+2B1C  | ⬜ | `:white_large_square:` |
 
-### Arrows (377)
+### Arrows (362)
 
 | Unicode | Character | ASCII |
 |---------|-----------|-------|
@@ -257,7 +247,7 @@ This holds across both file hooks: `tool.execute.before` never substitutes past
 | U+21D2  | ⇒ | `>` |
 | U+21D0  | ⇐ | `<` |
 | U+21D4  | ⇔ | `-` |
-| U+2194  | ↔ | `:left_right_arrow:` |
+| U+21C4  | ⇄ | `=` |
 
 ### Math operators (260)
 
@@ -274,27 +264,21 @@ This holds across both file hooks: `tool.execute.before` never substitutes past
 | U+2248  | ≈ | `~` |
 | U+221A  | √ | `sqrt` |
 
-### Emojis (1580)
+### Emojis and symbols (709)
 
 | Unicode | Character | ASCII |
 |---------|-----------|-------|
 | U+2713  | ✓ | `v` |
-| U+274C  | ❌ | `:x:` |
-| U+26A0  | ⚠ | `:warning:` |
 | U+2139  | ℹ | `i` |
-| U+2B50  | ⭐ | `:star:` |
-| U+1F525  | 🔥 | `:fire:` |
-| U+1F680  | 🚀 | `:rocket:` |
-| U+1F41B  | 🐛 | `:bug:` |
-| U+1F4DD  | 📝 | `:pencil:` |
-| U+1F512  | 🔒 | `:lock:` |
-| U+1F513  | 🔓 | `:unlock:` |
-| U+1F4C1  | 📁 | `:file_folder:` |
-| U+1F4C4  | 📄 | `:page_facing_up:` |
-| U+1F44D  | 👍 | `:thumbsup:` |
-| U+1F44E  | 👎 | `:thumbsdown:` |
+| U+2605  | ★ | `*` |
+| U+2606  | ☆ | `*` |
+| U+2610  | ☐ | `#` |
+| U+2612  | ☒ | `x` |
+| U+2318  | ⌘ | `#` |
 
-and many more!
+and many more! Any symbol or emoji whose only AnyAscii value was a
+Discord-style `:shortcode:` label (`🚀`, `🔥`, `✅`, `👍`, …) is **not** in the
+tables at all — see [Table sourcing (AnyAscii)](#table-sourcing-anyascii).
 
 See [`src/substitutions.ts`](src/substitutions.ts) for the full list.
 
@@ -302,50 +286,55 @@ See [`src/substitutions.ts`](src/substitutions.ts) for the full list.
 
 [AnyAscii](https://github.com/anyascii/anyascii) tag **0.3.3** is the source of
 **every substitution value** in the six tables above — WHOLESALE, not a curated
-subset. All 2606 entries are the AnyAscii 0.3.3 replacement verbatim, across the
-13 Unicode blocks the plugin already touched. Reproduce with
+subset. All 1712 entries are the AnyAscii 0.3.3 replacement verbatim, across the
+13 Unicode blocks the plugin already touched, after every Discord-style
+`:shortcode:` target was dropped. Reproduce with
 `python3 scripts/vendor-anyascii.py` (or verify with `--check`); the vendored
 reference is `vendor/anyascii/table-0.3.3-subset.tsv`, one AnyAscii row per
 mapped codepoint, and `--check` recoups every table value against it.
 
+> **Re-vendoring note.** The subset is *not* a straight slice of upstream: it is
+> upstream filtered through the exclusion rules in
+> `scripts/vendor-anyascii.py` (Latin letters, out-of-scope blocks, empty
+> replacements, `:shortcode:` labels). To bump the AnyAscii tag, regenerate the
+> full table, re-filter it with those rules and re-pin `PINNED_SHA256`,
+> `PINNED_COUNTS` and `FULL_TABLE_SHA256/ROWS`; do not copy the raw mapped rows.
+
 Examples of the values this brings in: `→` is now `>` (was `->`), `≠` is `=`
-(was `!=`), `👍` is `:thumbsup:` (was `:+1:`), `∀` is `V` (was `all`), `↵` is
-`<` (was a real newline), `⬛` is `:black_large_square:` (was `#`), `◉` is `*`
-(previously deleted), `∫` is `S` (previously deleted), `🍕` is `:pizza:`
-(previously deleted).
+(was `!=`), `∀` is `V` (was `all`), `↵` is `<` (was a real newline), `◉` is `*`
+(previously deleted), `∫` is `S` (previously deleted), `⇄` is `=`.
 
 #### What is never imported
 
-- **Latin letters (the Latin-1 exception).** U+00A0-U+036F is inside the strip
+- **Latin letters (the Latin-1 exception).** U+00A0-U+024F is inside the strip
   keep-set, so `é` `ł` `ø` `ß` survive the pipeline intact. AnyAscii
   transliterates them (`é` → `e`), which would corrupt the very text the
-  keep-set preserves, so those entries are excluded. The only Latin-1 entries
-  in the tables are symbols (`×` `÷` `±` `¬` `«` `»` `·` `¡` `¿` NBSP), never
-  letters.
-- **Scripts (Greek, Cyrillic, Arabic, Hebrew, CJK, kana, Hangul, Thai,
-  Devanagari, …).** Romanising them would fight the pipeline: the strip deletes
-  those characters, and AnyAscii's transliteration (which is its core business)
-  is deliberately ignored.
+  keep-set preserves, so those entries are excluded. The same exclusion covers
+  the Latin letters of U+0250-U+036F (IPA Extensions, Spacing Modifier
+  Letters): the strip deletes those blocks outright, so transliterating them
+  would leave ASCII residue instead. The only Latin-1 entries in the tables are
+  symbols (`×` `÷` `±` `¬` `«` `»` `·` `¡` `¿` NBSP), never letters.
 - **Blocks outside the 13 open ones.** Emoticons, Enclosed Alphanumeric
   Supplement, Supplemental Symbols and Pictographs, Currency Symbols, Block
-  Elements and the rest stay unrepresented — no fourteenth block is opened.
+  Elements, and every script block (Greek, Cyrillic, Arabic, Hebrew, CJK, kana,
+  Hangul, Thai, Devanagari, …) stay unrepresented — no fourteenth block is
+  opened, so a script entry is refused as out-of-scope. AnyAscii's
+  transliteration, its core business, is deliberately ignored.
 - **Empty AnyAscii replacements.** Where AnyAscii maps to `""` (ZWSP, emoji
   modifiers and friends) the strip already deletes the character.
-- **The euro sign `€` (U+20AC).** Deliberately unmapped: spelled out as `EUR`
-  it reads as injected prose, and a bare number is already unambiguous once the
-  sign is dropped. Currency Symbols is outside the 13 open blocks, so the strip
-  deletes it. This is an explicit decision, not an upstream gap — the generator
-  asserts it.
+- **Discord-style `:shortcode:` labels.** AnyAscii maps many symbols and emoji
+  to `:rocket:`, `:thumbsup:`, `:black_large_square:`; those targets are dropped
+  wholesale, so the characters are unmapped. The generator rejects any target
+  matching `^:[a-z0-9_]+:$`.
 
 #### The assumed conventions
 
-The values are upstream, but three things are this plugin's choice, documented
+The values are upstream, but two things are this plugin's choice, documented
 rather than silent:
 
-- **`:shortcode:` names are treated as Discord-style labels.** AnyAscii emits
-  names like `:thumbsup:`, `:left_right_arrow:`, `:black_large_square:`,
-  `:lady_beetle:`, `:mobile_phone:`; the plugin passes them through as useful
-  ASCII labels, on the assumption the audience reads Discord/Slack shortcodes.
+- **Dropping `:shortcode:` labels.** Instead of passing Discord/Slack shortcodes
+  through as ASCII, every `:label:` target is refused (same list as the
+  exclusion rule above).
 - **Category placement of wholesale entries follows a block map**: General
   Punctuation + Letterlike Symbols → `punctuation`; Box Drawing → `frames`;
   Geometric Shapes → `shapes`; Arrows + Miscellaneous Symbols and Arrows →
@@ -357,20 +346,19 @@ rather than silent:
   and geometric marks can be kept or dropped independently. The block set stays
   at 13.
 
-Realistic consequence, stated plainly: silhouette emoji in the pictographic
-blocks now take their shortcode even when the glyph is not the canonical one,
-and the appearance-based symbols (`◉` `◆` `▚`) collapse to their ASCII
-approximation. That is the trade of sourcing wholesale instead of curating
-glyph by glyph.
+Realistic consequence, stated plainly: the appearance-based symbols (`◉` `◆`)
+still collapse to their ASCII approximation, and every emoji whose only upstream
+value was a label is absent from the tables entirely, so the strip deletes it.
+That is the trade of sourcing wholesale instead of curating glyph by glyph.
 
-Pinned input is `vendor/anyascii/table-0.3.3-subset.tsv` — the mapped rows of
-the AnyAscii tag 0.3.3 table (full table: 123799 rows, SHA-256
-63d405125a149ed646b6f932be96414e2db4b9ff5c3cb1fac49f6386a6fb1fa9, not checked
-in; identity pinned in `scripts/vendor-anyascii.py`). The subset file is
+Pinned input is `vendor/anyascii/table-0.3.3-subset.tsv` — the mapped
+non-`:shortcode:` rows of the AnyAscii tag 0.3.3 table (full table: 123799 rows,
+SHA-256 63d405125a149ed646b6f932be96414e2db4b9ff5c3cb1fac49f6386a6fb1fa9, not
+checked in; identity pinned in `scripts/vendor-anyascii.py`). The subset file is
 SHA-256 verified on every run. The generator fails on any drift: subset hash change, a target that no
 longer matches the subset, a spelling that decodes elsewhere, a non-ASCII target,
 a duplicate key, a scope violation (<2 entries per block, unknown block,
-13-block drift), a Latin letter or script entry, the euro sign, or any
+13-block drift), a Latin letter, a `:shortcode:` label, or any
 subset row left uncurated (completeness).
 
 Licence: AnyAscii is **ISC** (Hunter WB) — see `LICENSE.anyascii`. The plugin
@@ -384,18 +372,16 @@ it is *excluded*, not overlooked:
 
 - **Everything outside the 13 open blocks** — Emoticons (U+1F600-U+1F64F),
   Enclosed Alphanumerics/Supplement, Supplemental Symbols and Pictographs,
-  Block Elements (shade blocks `░ ▒ ▓`), Currency Symbols and the rest. This is
-  the guardrail: a block is only ever entered with two or more entries, and no
-  new block opens.
+  Block Elements (shade blocks `░ ▒ ▓`), Currency Symbols, every script block
+  and the rest. This is the guardrail: a block is only ever entered with two or
+  more entries, and no new block opens.
 - **Latin letters** — the Latin-1 exception above.
-- **Scripts** — Greek, Cyrillic, Arabic, Hebrew, CJK, kana and Hangul are left
-  to the strip.
-- **The euro sign `€`** — the explicit decision above.
+- **Discord-style `:shortcode:` labels** — dropped wholesale (the exclusion rule
+  above).
 - **Empty AnyAscii replacements** — the strip handles them.
 
-There is no longer a hand-picked "ambiguous, so refused" list: `∓ ∛ ⊗ ◉ ☕`
-and the pedestal arrows `⇪ ⇫ ⇬ ⇭` are all mapped now, to their AnyAscii
-appearance forms.
+There is no longer a hand-picked "ambiguous, so refused" list: `∓` `∛` `⊗` `◉`
+and the appearance-based symbols are mapped to their AnyAscii forms.
 
 ### Open blocks only
 

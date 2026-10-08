@@ -31,12 +31,12 @@ describe("experimental.text.complete hook", () => {
 
   it("substitutes emoji in AI text output", async () => {
     const hooks = await makeHooks();
-    const output = { text: "Deployed 🚀 successfully!" };
+    const output = { text: "Deployed ✓ successfully!" };
     await hooks["experimental.text.complete"]?.(
       { sessionID: "s1", messageID: "m1", partID: "p1" },
       output,
     );
-    expect(output.text).toBe("Deployed :rocket: successfully!");
+    expect(output.text).toBe("Deployed v successfully!");
   });
 
   it("leaves plain ASCII unchanged", async () => {
@@ -82,10 +82,10 @@ describe("tool.execute.before: write", () => {
   it("substitutes emoji in args.content", async () => {
     const hooks = await makeHooks();
     const output = {
-      args: { filePath: "/tmp/test.txt", content: "launch 🚀 ready" },
+      args: { filePath: "/tmp/test.txt", content: "launch ✓ ready" },
     };
     await hooks["tool.execute.before"]?.(baseInput, output);
-    expect(output.args.content).toBe("launch :rocket: ready");
+    expect(output.args.content).toBe("launch v ready");
   });
 
   it("does not modify filePath", async () => {
@@ -126,11 +126,11 @@ describe("tool.execute.before: edit", () => {
       args: {
         filePath: "/tmp/f.txt",
         oldString: "x",
-        newString: "fire 🔥",
+        newString: "check ✓",
       },
     };
     await hooks["tool.execute.before"]?.(baseInput, output);
-    expect(output.args.newString).toBe("fire :fire:");
+    expect(output.args.newString).toBe("check v");
   });
 });
 
@@ -279,23 +279,25 @@ describe("tool.execute.after", () => {
     expect(output.output).toBe("foobarbaz");
   });
 
-  it("strips unmapped emoji from a tool result, keeps mapped ones as shortcodes", async () => {
+  it("strips unmapped emoji from a tool result, keeps mapped ones as ASCII", async () => {
     const hooks = await makeHooks({ stripNonLatin: true });
     const output = {
       title: "build",
-      output: "deployed 🚀 but 🧠 leaked",
+      output: "deployed ✓ but 🧠 leaked",
       metadata: {},
     };
     await hooks["tool.execute.after"]?.(baseInput, output);
-    // 🚀 is mapped -> ASCII shortcode survives; 🧠 is unmapped -> stripped.
-    expect(output.output).toBe("deployed :rocket: but  leaked");
+    // ✓ is mapped -> ASCII survives; 🧠 is unmapped -> stripped.
+    expect(output.output).toBe("deployed v but  leaked");
   });
 
-  it("normalises fullwidth forms in a tool result", async () => {
+  it("deletes fullwidth forms in a tool result", async () => {
     const hooks = await makeHooks({ stripNonLatin: true });
     const output = { title: "ok", output: "ＡＢＣ １２３", metadata: {} };
     await hooks["tool.execute.after"]?.(baseInput, output);
-    expect(output.output).toBe("ABC 123");
+    // The fullwidth/halfwidth block is out of scope and deleted; the ASCII
+    // space between the two runs survives.
+    expect(output.output).toBe(" ");
   });
 
   it("strips CJK from a read tool result", async () => {
@@ -345,25 +347,21 @@ describe("tool.execute.after", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("keeps the audit-added emoji as shortcodes in a tool result", async () => {
-    // Before the table audit these were absent from EMOJIS and outside the
-    // strip keep-set, so `stripNonLatin: true` deleted them outright.
+  it("strips shortcode-only emoji from a tool result", async () => {
+    // These all mapped to a :shortcode: upstream; with those targets dropped
+    // they are unmapped and the strip deletes them. ✓ still maps to ASCII.
     const hooks = await makeHooks({ stripNonLatin: true });
     const output = {
-      title: "ship ✨",
-      output: "look 👀 aim 🎯 key 🔑 pin 📌 search 🔍 new 🆕 at ⏰",
+      title: "ship ✓",
+      output: "look ✓ aim ✨ key 🔑 pin 📌 search 🔍 new 🆕 at ⏰",
       metadata: {},
     };
     await hooks["tool.execute.after"]?.(
       { tool: "bash", sessionID: "s1", callID: "c1", args: {} },
       output,
     );
-    expect(output.title).toBe("ship :sparkles:");
-    // 🆕 left the tables with its block, so it is deleted by the strip:
-    // "new 🆕" becomes "new " with nothing to stand in for the sign.
-    expect(output.output).toBe(
-      "look :eyes: aim :dart: key :key: pin :pushpin: search :mag: new  at :alarm_clock:",
-    );
+    expect(output.title).toBe("ship v");
+    expect(output.output).toBe("look v aim  key  pin  search  new  at ");
   });
 
   it("keeps ASCII-art frames intact in a tool result", async () => {
@@ -532,14 +530,14 @@ describe("stripNonLatin option", () => {
     expect(hooks["tool.execute.after"]).toBeDefined();
   });
 
-  it("applies substitution before stripping (emoji become :shortcode:)", async () => {
+  it("applies substitution before stripping (mapped emoji become ASCII)", async () => {
     const hooks = await makeHooks({ stripNonLatin: true });
-    const output = { text: "launch 🚀 to 世界" };
+    const output = { text: "launch ✓ to 世界" };
     await hooks["experimental.text.complete"]?.(
       { sessionID: "s1", messageID: "m1", partID: "p1" },
       output,
     );
-    expect(output.text).toBe("launch :rocket: to ");
+    expect(output.text).toBe("launch v to ");
   });
 
   it("leaves non-Latin text untouched by default (backward compatible)", async () => {
