@@ -80,8 +80,11 @@ out
 
 # Nuxt.js build / generate output
 .nuxt
-dist
 .output
+
+# dist/ is committed on purpose: the plugin is installed from the built tree
+# (see README), so it must not be ignored.
+
 
 # Gatsby files
 .cache/
