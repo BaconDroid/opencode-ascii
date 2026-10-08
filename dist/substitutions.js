@@ -1,21 +1,11 @@
 /**
- * Unicode → ASCII substitution mappings, organised by category.
- * Each entry is a tuple of [unicode, ascii].
+ * Unicode → ASCII mappings by category, each entry `[unicode, ascii]`.
  *
- * Table sourcing: WHOLESALE AnyAscii tag 0.3.3 (ISC, see LICENSE.anyascii).
- * Every value below is the AnyAscii replacement verbatim — 1712 entries across
- * the 13 open blocks, six categories. Never imported: Latin letters in
- * U+00A0-U+036F (accented/extended Latin is kept by the strip, and IPA,
- * Spacing Modifier and Combining Diacritical letters are deleted by it —
- * neither should be transliterated), blocks outside the 13 open ones (scripts
- * and every other unopened block included — the strip deletes them), empty
- * replacements, and Discord-style :shortcode: labels (dropped wholesale — they
- * are labels, not transliterations; see scripts/vendor-anyascii.py). Assumed,
- * not upstream: the category placement of wholesale entries by block and the
- * frames/shapes split itself. See the README
- * section "Table sourcing (AnyAscii)" and the vendored rows in
- * vendor/anyascii/table-0.3.3-subset.tsv.
- * Regenerate with: python3 scripts/vendor-anyascii.py
+ * Values are the AnyAscii 0.3.3 replacement verbatim (ISC, see
+ * LICENSE.anyascii): 1712 entries over the 13 open blocks. Not imported: Latin
+ * letters, out-of-scope blocks (scripts included), empty replacements and
+ * Discord-style `:shortcode:` labels. See the README section "Table sourcing
+ * (AnyAscii)" and scripts/vendor-anyascii.py, which regenerates the tables.
  */
 export const PUNCTUATION = [
     // Dashes
@@ -40,13 +30,8 @@ export const PUNCTUATION = [
     ["\u201B", "'"], // single high-reversed-9 quotation mark (‛)
     ["\u2039", "<"], // single left-pointing angle quotation mark (‹)
     ["\u203A", ">"], // single right-pointing angle quotation mark (›)
-    // Latin-1 punctuation. U+00A0-U+00FF is inside the strip keep-set, so unlike
-    // the symbol blocks above these three were never deleted: they passed through
-    // the pipeline still non-ASCII, which is residue in a pipeline whose whole
-    // contract is ASCII output. The no-break space is the worst of the three --
-    // it is invisible, it is what web copy arrives with, and it desynchronises
-    // diffs and column alignment. The two inverted marks are the direct twins of
-    // ASCII ! and ?, so the target is forced rather than chosen.
+    // Latin-1 punctuation: inside the strip keep-set, so it must be mapped or it
+    // leaks through as non-ASCII. NBSP is invisible and desynchronises diffs.
     ["\u00A0", " "], // no-break space ( )
     ["\u00A1", "!"], // inverted exclamation mark (¡)
     ["\u00BF", "?"], // inverted question mark (¿)
@@ -59,10 +44,7 @@ export const PUNCTUATION = [
     ["\u2027", "-"], // hyphenation point (‧)
     ["\u2032", "'"], // prime (′)
     ["\u2033", "''"], // double prime (″)
-    // The U+2030-U+205E run of General Punctuation is inside the strip keep-set,
-    // so everything in it that is not mapped here leaks through the pipeline
-    // intact. These five are the AnyAscii 0.3.3 values verbatim;
-    // the rest of the run follows AnyAscii in the wholesale section below.
+    // U+2030-U+205E tail of General Punctuation, AnyAscii 0.3.3 values.
     ["\u2035", "`"], // reversed prime (‵)
     ["\u2016", "||"], // double vertical line (‖)
     ["\u203C", "!!"], // double exclamation mark (‼)
@@ -77,12 +59,6 @@ export const PUNCTUATION = [
     ["\u2109", "F"], // degree fahrenheit (℉)
     ["\u2116", "No"], // numero sign (№)
     // AnyAscii wholesale — General Punctuation and Letterlike Symbols.
-    // Every entry below is the AnyAscii 0.3.3 value verbatim: the U+2000-U+200A
-    // spaces, U+2011, the daggers, primes, quills, interrobangs, fractions and
-    // the whole Letterlike run. What stays out is listed in the README ("Table
-    // sourcing") and enforced by scripts/vendor-anyascii.py: Latin letters,
-    // blocks outside the 13 open ones, empty replacements, and :shortcode:
-    // labels.
     ["\u2000", " "], // en quad
     ["\u2001", " "], // em quad
     ["\u2002", " "], // en space
@@ -221,11 +197,8 @@ export const FRAMES = [
     // Frames — rules, corners, tees and crosses.
     ["\u2500", "-"], // box drawings light horizontal (─)
     ["\u2502", "|"], // box drawings light vertical (│)
-    // Box drawing — the full block per AnyAscii 0.3.3: corners, tees and
-    // crosses collapse to "+", rules to "-" and "|", heavies like their light
-    // twins. The heavy corners and mixed joints join in the wholesale section
-    // below. Without these, an ASCII-art frame collapsed to "CI ---- passed"
-    // and a diff lost its sides.
+    // Box drawing — corners/tees/crosses collapse to "+", rules to "-"/"|".
+    // Without this an ASCII-art frame collapsed to "CI ---- passed".
     ["\u250C", "+"], // box drawings light down and right (┌)
     ["\u2510", "+"], // box drawings light down and left (┐)
     ["\u2514", "+"], // box drawings light up and right (└)
@@ -238,9 +211,6 @@ export const FRAMES = [
     ["\u2501", "-"], // box drawings heavy horizontal (━)
     ["\u2503", "|"], // box drawings heavy vertical (┃)
     // AnyAscii wholesale — Box Drawing, heavies and mixed joints.
-    // Every entry below is the AnyAscii 0.3.3 value verbatim: the heavy
-    // corners, the light/heavy mixes and the double-rule joints.
-    // The shade blocks of U+2580-U+259F stay out — a different block.
     ["\u2504", "-"], // box drawings light triple dash horizontal (┄)
     ["\u2505", "-"], // box drawings heavy triple dash horizontal (┅)
     ["\u2506", "|"], // box drawings light triple dash vertical (┆)
@@ -365,13 +335,8 @@ export const SHAPES = [
     ["\u25CB", "*"], // white circle (○)
     ["\u25A0", "#"], // black square (■)
     ["\u25A1", "#"], // white square (□)
-    // The emoji-scale twins of the two squares above (⬛ ⬜) mapped only to an
-    // AnyAscii :shortcode: label, so they are dropped rather than mapped; see
-    // the header and scripts/vendor-anyascii.py.
+    // ⬛ ⬜ mapped only to a :shortcode:, so they are dropped, not mapped.
     // AnyAscii wholesale — Geometric Shapes by appearance.
-    // Every entry below is the AnyAscii 0.3.3 value verbatim: diamonds,
-    // lozenges, triangles, circles with fills, rectangles and all. Direction
-    // section below. The up/down triangles used directionally stay in ARROWS.
     ["\u25a2", "#"], // white square with rounded corners (▢)
     ["\u25a3", "#"], // white square containing black small square (▣)
     ["\u25a4", "#"], // square with horizontal fill (▤)
@@ -470,11 +435,8 @@ export const ARROWS = [
     ["\u21A4", "<"], // leftwards arrow from bar (↤)
     ["\u21E8", ">"], // rightwards white arrow (⇨)
     ["\u21E6", "<"], // leftwards white arrow (⇦)
-    // Completing the white set: ⇦ and ⇨ were mapped and the two perpendicular
-    // members of the same family were not, so a vertical white arrow rendered
-    // differently from a horizontal one. The pedestal and double-stroke white
-    // arrows (⇪ ⇫ ⇬ ⇭) join per AnyAscii below (^): their "return"/"confirm"
-    // affordance is not preserved — wholesale maps by appearance.
+    // Completing the white/pedestal arrows per AnyAscii (^): wholesale maps by
+    // appearance, so the "return"/"confirm" affordance is not preserved.
     ["\u21E7", "^"], // upwards white arrow (⇧)
     ["\u21E9", "v"], // downwards white arrow (⇩)
     ["\u2B9E", ">"], // black rightwards arrowhead (⮞) – U+2B9E
@@ -489,18 +451,12 @@ export const ARROWS = [
     ["\u25B3", "^"], // white up-pointing triangle (△)
     ["\u25BE", "v"], // black down-pointing small triangle (▾)
     ["\u25B4", "^"], // black up-pointing small triangle (▴)
-    // Directional triangles, the filled siblings of ▲/▼ above. (U+25BA ► sits in
-    // PUNCTUATION as a "pointer"; these two join the arrows because they are
-    // used directionally, like the existing ▲/▼.)
-    // Arrows with a hook, the ones LLMs use for "go back / return to".
+    // Directional triangles (filled siblings of ▲/▼) and hook arrows.
     ["\u21B5", "<"], // downwards arrow with corner leftwards (↵)
     // Circular arrows: undo and retry.
     ["\u21BA", "<"], // anticlockwise open circle arrow (↺)
     ["\u21BB", ">"], // clockwise open circle arrow (↻)
-    // Dashed and heavy round-tipped variants. The white arrows U+21E6/U+21E8 are
-    // already mapped above; these are the twins that were left dangling. The
-    // vertical halves of the dashed family are here for the same reason as the
-    // white ones: ⇠ ⇢ were mapped, ⇡ ⇣ were not.
+    // Dashed and heavy round-tipped variants, twins of the arrows above.
     ["\u21E0", "<"], // leftwards dashed arrow (⇠)
     ["\u21E2", ">"], // rightwards dashed arrow (⇢)
     ["\u21E1", "^"], // upwards dashed arrow (⇡)
@@ -518,9 +474,7 @@ export const ARROWS = [
     ["\u279C", ">"], // heavy round-tipped rightwards arrow (➜)
     ["\u27A4", ">"], // black rightwards arrowhead (➤)
     // AnyAscii wholesale — Arrows and Miscellaneous Symbols and Arrows.
-    // Every entry below is the AnyAscii 0.3.3 single- or multi-char value
-    // verbatim; the arrows flag covers the block, not the value shape. Arrows
-    // whose only AnyAscii value is a :shortcode: label (↔ ↕ …) are dropped.
+    // Arrows whose only value is a :shortcode: (↔ ↕ …) are dropped.
     ["\u219a", "<"], // leftwards arrow with stroke (↚)
     ["\u219b", ">"], // rightwards arrow with stroke (↛)
     ["\u219c", "<"], // leftwards wave arrow (↜)
@@ -853,10 +807,7 @@ export const MATH = [
     ["\u2261", "="], // identical to (≡)
     ["\u2264", "<="], // less-than or equal to (≤)
     ["\u2265", ">="], // greater-than or equal to (≥)
-    // The stacked forms of the two relations above, siblings of the ≪ ≫ already
-    // mapped below: a "less-than over equal-to" is still a less-than-or-equal,
-    // and writing it any other way would assert a comparison the glyph does not
-    // make. Same for the parallel sign, whose ASCII form is the bar ||.
+    // Stacked relations and the parallel sign, siblings of ≪ ≫.
     ["\u2266", "<="], // less-than over equal to (≦)
     ["\u2267", ">="], // greater-than over equal to (≧)
     ["\u2225", "||"], // parallel to (∥)
@@ -896,9 +847,6 @@ export const MATH = [
     ["\u22C5", "*"], // dot operator (⋅)
     ["\u22EF", "-"], // midline horizontal ellipsis (⋯)
     // AnyAscii wholesale — Mathematical Operators.
-    // Every entry below is the AnyAscii 0.3.3 value verbatim: negations,
-    // roots, integrals, relations and all. Single letters are upstream,
-    // not abbreviations chosen here.
     ["\u2201", "C"], // complement (∁)
     ["\u2203", "E"], // there exists (∃)
     ["\u2204", "E"], // there does not exist (∄)
@@ -1132,37 +1080,14 @@ export const EMOJIS = [
     ["\u2612", "x"], // ballot box with x ([x])
     ["\u2717", "x"], // ballot x ([!])
     ["\u2718", "x"], // heavy ballot x ([!])
-    // Warnings / alerts
     // Info / ideas
     ["\u2139", "i"], // information source ([i])
     // Stars / rating
     ["\u2605", "*"], // black star ([*])
     ["\u2606", "*"], // white star ([*])
-    // Common emoji sequences
-    // High-frequency dev-chat emoji that were reaching the terminal raw. The
-    // table above is weighted towards work objects (folders, files, locks); these
-    // are the reaction and control symbols that appear in every commit message
-    // and status line.
-    //
-    // Scope rule: a Unicode block is only ever entered with two or more
-    // characters, never one. A block represented by a single character looks
-    // arbitrary -- it suggests the whole block is handled when in fact only that
-    // one character is, and it is a standing invitation to add a lone second
-    // entry that makes the inconsistency harder to see. Every block that was
-    // ever a singleton was emptied rather than padded: the sole Emoticons entry
-    // (🙄), the sole Enclosed Alphanumeric Supplement entry (🆕), and then the
-    // sole Supplemental Symbols and Pictographs entry (🤝), which only became a
-    // singleton once 🤔 was removed from beside it. Emoticons, Enclosed
-    // Alphanumeric Supplement and Supplemental Symbols and Pictographs are
-    // therefore not represented at all. See the README.
     // AnyAscii wholesale — Dingbats, Miscellaneous Symbols, Miscellaneous
-    // Symbols and Pictographs, Miscellaneous Technical, Transport and Map.
-    // Every entry below is the AnyAscii 0.3.3 non-:shortcode: value verbatim.
-    // Entries whose only AnyAscii value was a Discord-style :shortcode: label
-    // are dropped wholesale, not curated glyph by glyph; see the header and
-    // scripts/vendor-anyascii.py for the rule and the re-vendoring note.
-    // Emoticons, Enclosed Alphanumerics and Supplemental Pictographs stay
-    // out — different blocks, still unrepresented.
+    // Symbols and Pictographs, Miscellaneous Technical, Transport and Map. The
+    // ">= 2 entries per block" rule is enforced by scripts/vendor-anyascii.py.
     ["\u2300", "0"], // diameter sign (⌀)
     ["\u2301", "~"], // electric arrow (⌁)
     ["\u2302", "^"], // house (⌂)
@@ -1895,20 +1820,11 @@ export function buildSubstitutions(config = {}) {
     return entries;
 }
 /**
- * Build a compiled RegExp that matches all active unicode characters at once.
- * This is much faster than running replace() N times.
- *
- * The pattern is a single character class of coalesced codepoint ranges, not
- * an alternation. An alternation of all 1712 entries pushes V8 off its
- * optimiser onto the interpreter, with match cost proportional to the number
- * of alternatives (measured, byte-identical output: 100 KB of matching text
- * took 648 ms as an alternation vs 0.5 ms as a class; 1 MB took 7667 ms vs
- * 5.6 ms; 1 MB with no match is equivalent either way). V8 compiles classes
- * to a range table, so the 125 ranges below cost far less than an alternation — the
- * strip regex further down already relies on exactly this. Ranges may cover
- * codepoints no table maps; that is harmless because applySubstitutions falls
- * back to the character itself (`?? match`). An empty set yields `[]`, which
- * never matches — replacing nothing, like the old empty alternation.
+ * Compile every active key into one global character class of coalesced ranges.
+ * A class compiles to a V8 range table; an alternation of 1712 entries drops V8
+ * to the interpreter (measured 648 ms vs 0.5 ms per 100 KB of matching text).
+ * Ranges may cover unmapped codepoints, which `applySubstitutions` passes
+ * through unchanged. An empty set yields `[]`, which never matches.
  */
 export function buildRegex(substitutions) {
     const points = substitutions
@@ -1931,12 +1847,7 @@ export function buildRegex(substitutions) {
     }
     return new RegExp(`[${pattern}]`, "gu");
 }
-/**
- * Spell a codepoint as a character-class-safe escape.
- *
- * Every entry is emitted escaped (`\uXXXX` / `\u{XXXXX}`), so no literal in
- * the class can ever read as a range dash, a negation or a class close.
- */
+/** Spell a codepoint as an escaped, class-safe literal (`\uXXXX`/`\u{XXXXX}`). */
 function escapePoint(cp) {
     const hex = cp.toString(16);
     return cp <= 0xffff ? "\\u" + hex.padStart(4, "0") : "\\u{" + hex + "}";
@@ -1948,67 +1859,32 @@ export function applySubstitutions(text, regex, map) {
     return text.replace(regex, (match) => map.get(match) ?? match);
 }
 // ---------------------------------------------------------------------------
-// Aggressive allowlist strip
+// Allowlist strip
 // ---------------------------------------------------------------------------
 //
-// The kept set is an explicit list of codepoint BLOCKS, not a script query.
-// Script queries were the original bug: `\p{Script=Common}` covers CJK
-// punctuation and every pictographic emoji, and `\p{Script=Latin}` covers
-// fullwidth letters, so a script filter leaks the exact characters this
-// function exists to remove.
-//
-// Kept blocks, in codepoint order. All of them are consecutive runs, so the
-// whole set collapses to five ranges with three holes:
+// The kept set is an explicit list of codepoint ranges, not a script query: a
+// script filter leaks CJK punctuation and emoji (\p{Script=Common}) and
+// fullwidth letters (\p{Script=Latin}).
 //
 //   U+0000-U+007F  Basic Latin
-//        <hole: U+0080-U+009F, the C1 controls>
-//   U+00A0-U+024F  Latin-1 Supplement, Latin Extended-A and Latin Extended-B.
-//                   These three blocks are genuinely consecutive -- each one
-//                   starts at the codepoint after the previous one ends -- so
-//                   a single range covers all of them. (Basic Latin above is
-//                   NOT adjacent: the C1 gap separates it, which is why there
-//                   are two ranges and not one.) IPA Extensions, Spacing
-//                   Modifier Letters and Combining Diacritical Marks continue
-//                   the run numerically but are deliberately NOT kept, so the
-//                   range stops at U+024F rather than U+036F.
-//        <hole: U+0250-U+1FFF, which is where IPA Extensions, Spacing Modifier
-//                   Letters, Combining Diacritical Marks, Greek, Cyrillic,
-//                   Hebrew, Arabic, the CJK blocks, Hangul, kana and every
-//                   symbol block live>
-//   U+2000-U+200A  General Punctuation, first kept run
-//        <hole: U+200B-U+200F, ZWSP / ZWNJ / ZWJ / LRM / RLM>
-//   U+2010-U+2027  General Punctuation, second kept run
-//        <hole: U+2028-U+202F, line and paragraph separators, bidi controls,
-//                   narrow no-break space>
-//   U+2030-U+205E  General Punctuation, third kept run
-//        <hole: U+205F-U+206F, medium mathematical space, word joiner,
-//                   invisible operators, bidi isolates>
+//   <hole> U+0080-U+009F  C1 controls
+//   U+00A0-U+024F  Latin-1 Supplement + Latin Extended-A/B
+//   <hole> U+0250-U+1FFF  IPA/Spacing/Combining, scripts, CJK, symbol blocks
+//   U+2000-U+200A  General Punctuation, first run
+//   <hole> U+200B-U+200F  ZWSP / ZWNJ / ZWJ / LRM / RLM
+//   U+2010-U+2027  General Punctuation, second run
+//   <hole> U+2028-U+202F  separators, bidi controls, narrow NBSP
+//   U+2030-U+205E  General Punctuation, third run
+//   <hole> U+205F-U+206F  math space, word joiner, invisible ops, bidi isolates
 //
-// The three holes inside and around General Punctuation are the reason the
-// punctuation block is written as three ranges instead of one: the invisible
-// and format characters in it render as nothing and are actively harmful in a
-// terminal, so they are removed while the visible punctuation is kept.
-//
-// Everything not listed above is stripped: Greek, Cyrillic, Arabic, Hebrew,
-// CJK, kana, Hangul, Thai, Devanagari, emoji, the symbol blocks, the controls,
-// and the unassigned codepoints.
-//
-// This regex only ever DELETES. It never rewrites a character into another
-// one -- turning `—` into `-` or `✓` into `v` is the job of the
-// `punctuation`/`frames`/`shapes`/`arrows`/`math`/`emojis` tables, which run
-// first in rewriteText. See the README section "stripNonLatin" for why that
-// ordering matters.
+// The General Punctuation holes drop invisible/format characters while keeping
+// visible punctuation. Everything else is stripped. This regex only DELETES;
+// rewriting `—` to `-` or `✓` to `v` is the tables' job, and they run first.
 const NON_ASCII_ALLOWED = /[^\u0000-\u007F\u00A0-\u024F\u2000-\u200A\u2010-\u2027\u2030-\u205E]/gu;
 /**
- * Remove every character outside the explicit allowlist of codepoint blocks
- * described above. Nothing is folded: fullwidth/halfwidth forms U+FF00-U+FFEF
- * are outside both the substitution blocks and the kept blocks, so they are
- * deleted like any other out-of-scope character.
- *
- * Applied after substitutions, so curated characters are already ASCII by the
- * time this runs. Bare — with no substitution before it — it still keeps the
- * Latin blocks and the visible General Punctuation intact; see the pipeline
- * tests for what the combination produces.
+ * Remove every character outside the allowlist above. Nothing is folded:
+ * fullwidth/halfwidth forms (U+FF00-U+FFEF) are out of scope and are deleted.
+ * Applied after substitutions, so curated characters are already ASCII.
  */
 export function stripNonLatinChars(text) {
     return text.replace(NON_ASCII_ALLOWED, "");

@@ -7,47 +7,21 @@ import {
   stripNonLatinChars,
 } from "./substitutions";
 
-/**
- * Options accepted by AsciiPlugin.
- *
- * All substitution categories default to `true` (enabled).
- * `stripNonLatin` defaults to `false` (opt-in): it applies to AI text and
- * tool results, never to file arguments (irreversible data loss).
- */
 export type AsciiPluginOptions = SubstitutionConfig;
-
-/** Options object as passed by the host: an open record of unknown values. */
 export type AsciiPluginInput = Record<string, unknown>;
 
 /** `output` of `experimental.text.complete`. */
 export type TextCompleteOutput = { text: string };
-
-/** `input` of `tool.execute.before`. */
-export type ToolExecuteBeforeInput = { tool: string };
-
+/** `input` of `tool.execute.before` and `tool.execute.after`. */
+export type ToolInput = { tool: string };
 /** `output` of `tool.execute.before`. */
-export type ToolExecuteBeforeOutput = { args: Record<string, unknown> };
+export type ToolBeforeOutput = { args: Record<string, unknown> };
+/** `output` of `tool.execute.after`. `metadata` is intentionally unused. */
+export type ToolAfterOutput = { title: string; output: string; metadata: unknown };
 
 /**
- * `input` of `tool.execute.after`.
- *
- * Structurally narrowed to the single field this plugin reads; the host also
- * passes `sessionID`, `callID` and `args`, which stay unused here.
- */
-export type ToolExecuteAfterInput = { tool: string };
-
-/** `output` of `tool.execute.after`. */
-export type ToolExecuteAfterOutput = {
-  title: string;
-  output: string;
-  metadata: unknown;
-};
-
-/**
- * The hooks this plugin implements, described structurally so the emitted
- * declaration does not depend on the host's plugin package. The conformance
- * assertion at the bottom of this file keeps them aligned with the host
- * contract, so nothing is actually lost.
+ * Hooks described structurally, so the declaration never depends on the host's
+ * `Hooks` type; the conformance assertion at the bottom keeps them in sync.
  */
 export type AsciiPluginHooks = {
   "experimental.text.complete"?: (
@@ -55,42 +29,38 @@ export type AsciiPluginHooks = {
     output: TextCompleteOutput,
   ) => Promise<void>;
   "tool.execute.before"?: (
-    input: ToolExecuteBeforeInput,
-    output: ToolExecuteBeforeOutput,
+    input: ToolInput,
+    output: ToolBeforeOutput,
   ) => Promise<void>;
   "tool.execute.after"?: (
-    input: ToolExecuteAfterInput,
-    output: ToolExecuteAfterOutput,
+    input: ToolInput,
+    output: ToolAfterOutput,
   ) => Promise<void>;
 };
 
-/**
- * Narrow the host's loose options record to the recognised boolean categories.
- * Unknown keys and non-boolean values are ignored.
- */
+const BOOLEAN_KEYS = [
+  "punctuation",
+  "frames",
+  "shapes",
+  "arrows",
+  "math",
+  "emojis",
+  "stripNonLatin",
+] as const;
+
+/** Narrow the host's loose options record to the recognised boolean keys. */
 function resolveConfig(options?: AsciiPluginInput): SubstitutionConfig {
   if (!options) return {};
   const config: SubstitutionConfig = {};
-  if (typeof options["punctuation"] === "boolean")
-    config.punctuation = options["punctuation"];
-  if (typeof options["frames"] === "boolean") config.frames = options["frames"];
-  if (typeof options["shapes"] === "boolean") config.shapes = options["shapes"];
-  if (typeof options["arrows"] === "boolean") config.arrows = options["arrows"];
-  if (typeof options["math"] === "boolean") config.math = options["math"];
-  if (typeof options["emojis"] === "boolean") config.emojis = options["emojis"];
-  if (typeof options["stripNonLatin"] === "boolean")
-    config.stripNonLatin = options["stripNonLatin"];
+  for (const key of BOOLEAN_KEYS) {
+    if (typeof options[key] === "boolean") config[key] = options[key];
+  }
   return config;
 }
 
 /**
- * AsciiPlugin — substitutes unicode characters with ASCII equivalents
- * in AI responses, file write/edit operations, and tool results.
- *
- * Covered hooks:
- *  - `experimental.text.complete` : rewrites completed AI text parts (substitution + optional `stripNonLatin`)
- *  - `tool.execute.before`        : rewrites `write` and `edit` tool arguments (substitution only)
- *  - `tool.execute.after`         : rewrites the rendered title and output of any tool result (substitution + optional `stripNonLatin`)
+ * AsciiPlugin — substitutes unicode characters with ASCII equivalents in AI
+ * text, file write/edit arguments and tool results.
  */
 export const AsciiPlugin = async (
   _ctx?: unknown,
@@ -98,106 +68,48 @@ export const AsciiPlugin = async (
 ): Promise<AsciiPluginHooks> => {
   const config = resolveConfig(options);
   const substitutions = buildSubstitutions(config);
-
-  if (substitutions.length === 0 && !config.stripNonLatin) {
-    // All categories disabled and no stripping — nothing to do.
-    return {};
-  }
+  if (substitutions.length === 0 && !config.stripNonLatin) return {};
 
   const map = new Map<string, string>(substitutions);
-  // Reset regex lastIndex before reuse by always using a fresh call to
-  // buildRegex; the 'g' flag is stateful so we rebuild per call or use
-  // a factory. We build once and rely on String.prototype.replace resetting it.
   const regex = buildRegex(substitutions);
 
-  function substitute(text: string): string {
-    // Reset the regex state (stateful with /g flag)
+  const substitute = (text: string): string => {
     regex.lastIndex = 0;
     return applySubstitutions(text, regex, map);
-  }
+  };
 
-  /**
-   * Substitution, then optional non-Latin stripping.
-   *
-   * Never used on file payloads: `write`/`edit`/`apply_patch` arguments
-   * legitimately contain non-Latin text (translated docs, string tables), and
-   * removing characters from them would be irreversible data loss.
-   */
-  function rewriteText(text: string): string {
-    const substituted = substitute(text);
-    if (config.stripNonLatin) return stripNonLatinChars(substituted);
-    return substituted;
-  }
+  // Substitution, then optional strip. Never used on file payloads: deleting
+  // characters there would be irreversible data loss.
+  const rewriteText = (text: string): string =>
+    config.stripNonLatin ? stripNonLatinChars(substitute(text)) : substitute(text);
 
   return {
-    /**
-     * Rewrite completed AI text parts before they are stored.
-     * `experimental.text.complete` fires once per text part after the
-     * streaming is done, giving us `output.text` to modify in place.
-     *
-     * One of the two hooks where `stripNonLatin` is applied (the other is
-     * `tool.execute.after` below).
-     */
+    // Fires once per text part after streaming, before the text is stored.
     "experimental.text.complete": async (_input, output) => {
-      if (typeof output.text === "string") {
-        output.text = rewriteText(output.text);
-      }
+      if (typeof output.text === "string") output.text = rewriteText(output.text);
     },
 
-    /**
-     * Rewrite file-writing tool arguments before execution, substitutions
-     * only — never `stripNonLatin`, never `oldString` (it must match).
-     *
-     * `apply_patch` stays out: its removal and context lines must match the
-     * target file byte for byte, so substituting `patchText` breaks patches.
-     */
+    // Substitutions only: `oldString` must keep matching the file, and
+    // `apply_patch` diffs must stay byte-identical.
     "tool.execute.before": async (input, output) => {
-      switch (input.tool) {
-        case "write": {
-          if (typeof output.args?.content === "string") {
-            output.args.content = substitute(output.args.content);
-          }
-          break;
-        }
-        case "edit": {
-          if (typeof output.args?.newString === "string") {
-            output.args.newString = substitute(output.args.newString);
-          }
-          break;
-        }
+      if (input.tool === "write" && typeof output.args?.content === "string") {
+        output.args.content = substitute(output.args.content);
+      } else if (input.tool === "edit" && typeof output.args?.newString === "string") {
+        output.args.newString = substitute(output.args.newString);
       }
     },
 
-    /**
-     * Rewrite the rendered title and body of a tool result.
-     *
-     * Not display-only: results are replayed to the model, so stripping is
-     * lossy past the tool call — the assumed trade of the opt-in. `metadata`
-     * is left alone (the renderer consumes it). This is the only interception
-     * point the host offers for tool results.
-     */
+    // Results are replayed to the model, so stripping here is lossy past the
+    // tool call; `metadata` is renderer state and is left alone.
     "tool.execute.after": async (_input, output) => {
-      if (typeof output?.title === "string") {
-        output.title = rewriteText(output.title);
-      }
-      if (typeof output?.output === "string") {
-        output.output = rewriteText(output.output);
-      }
+      if (typeof output?.title === "string") output.title = rewriteText(output.title);
+      if (typeof output?.output === "string") output.output = rewriteText(output.output);
     },
   };
 };
 
-export default {
-  id: "opencode-ascii",
-  server: AsciiPlugin,
-};
+export default { id: "opencode-ascii", server: AsciiPlugin };
 
-/**
- * Compile-time guarantee that the self-contained surface above still satisfies
- * the host contract. Unexported, so `Hooks` never reaches the declaration file
- * and no runtime code is emitted -- but the link to `@opencode-ai/plugin` is
- * still checked on every build.
- */
 type Assert<T extends true> = T;
 type _HooksConformance = Assert<
   AsciiPluginHooks extends Pick<Hooks, keyof AsciiPluginHooks> ? true : false
