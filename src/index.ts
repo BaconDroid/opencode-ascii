@@ -1,4 +1,4 @@
-import type { Hooks } from "@opencode-ai/plugin";
+import { Plugin } from "@opencode/plugin";
 import {
   type SubstitutionConfig,
   buildSubstitutions,
@@ -9,34 +9,6 @@ import {
 
 export type AsciiPluginOptions = SubstitutionConfig;
 export type AsciiPluginInput = Record<string, unknown>;
-
-/** `output` of `experimental.text.complete`. */
-export type TextCompleteOutput = { text: string };
-/** `input` of `tool.execute.before` and `tool.execute.after`. */
-export type ToolInput = { tool: string };
-/** `output` of `tool.execute.before`. */
-export type ToolBeforeOutput = { args: Record<string, unknown> };
-/** `output` of `tool.execute.after`. `metadata` is intentionally unused. */
-export type ToolAfterOutput = { title: string; output: string; metadata: unknown };
-
-/**
- * Hooks described structurally, so the declaration never depends on the host's
- * `Hooks` type; the conformance assertion at the bottom keeps them in sync.
- */
-export type AsciiPluginHooks = {
-  "experimental.text.complete"?: (
-    input: unknown,
-    output: TextCompleteOutput,
-  ) => Promise<void>;
-  "tool.execute.before"?: (
-    input: ToolInput,
-    output: ToolBeforeOutput,
-  ) => Promise<void>;
-  "tool.execute.after"?: (
-    input: ToolInput,
-    output: ToolAfterOutput,
-  ) => Promise<void>;
-};
 
 const BOOLEAN_KEYS = [
   "punctuation",
@@ -58,18 +30,25 @@ function resolveConfig(options?: AsciiPluginInput): SubstitutionConfig {
   return config;
 }
 
+export type AsciiRewriter = {
+  /**
+   * Substitution followed by the optional strip: the shape used for AI text and
+   * tool results.
+   */
+  rewrite(text: string): string;
+  /** Substitution only: the shape used for file payloads, where deletion is lossy. */
+  substitute(text: string): string;
+  /** False when every category is off and stripping is off, so nothing is registered. */
+  enabled: boolean;
+};
+
 /**
- * AsciiPlugin — substitutes unicode characters with ASCII equivalents in AI
- * text, file write/edit arguments and tool results.
+ * Compile the options into the pair of transforms the hooks apply. Exported so
+ * the whole pipeline can be exercised without a running OpenCode host.
  */
-export const AsciiPlugin = async (
-  _ctx?: unknown,
-  options?: AsciiPluginInput,
-): Promise<AsciiPluginHooks> => {
+export function createRewriter(options?: AsciiPluginInput): AsciiRewriter {
   const config = resolveConfig(options);
   const substitutions = buildSubstitutions(config);
-  if (substitutions.length === 0 && !config.stripNonLatin) return {};
-
   const map = new Map<string, string>(substitutions);
   const regex = buildRegex(substitutions);
 
@@ -78,39 +57,139 @@ export const AsciiPlugin = async (
     return applySubstitutions(text, regex, map);
   };
 
-  // Substitution, then optional strip. Never used on file payloads: deleting
-  // characters there would be irreversible data loss.
-  const rewriteText = (text: string): string =>
-    config.stripNonLatin ? stripNonLatinChars(substitute(text)) : substitute(text);
-
   return {
-    // Fires once per text part after streaming, before the text is stored.
-    "experimental.text.complete": async (_input, output) => {
-      if (typeof output.text === "string") output.text = rewriteText(output.text);
-    },
+    substitute,
+    rewrite: config.stripNonLatin
+      ? (text) => stripNonLatinChars(substitute(text))
+      : substitute,
+    enabled: substitutions.length > 0 || config.stripNonLatin === true,
+  };
+}
 
-    // Substitutions only: `oldString` must keep matching the file, and
-    // `apply_patch` diffs must stay byte-identical.
-    "tool.execute.before": async (input, output) => {
-      if (input.tool === "write" && typeof output.args?.content === "string") {
-        output.args.content = substitute(output.args.content);
-      } else if (input.tool === "edit" && typeof output.args?.newString === "string") {
-        output.args.newString = substitute(output.args.newString);
+/**
+ * AsciiPlugin — substitutes unicode characters with ASCII equivalents in the
+ * model-visible transcript, file write/edit arguments and tool results.
+ */
+export const AsciiPlugin = Plugin.define({
+  id: "opencode-ascii",
+  async setup(ctx) {
+    const rewriter = createRewriter(ctx.options as AsciiPluginInput);
+    if (!rewriter.enabled) return;
+
+    // V2 has no `experimental.text.complete` equivalent: assistant text is
+    // rewritten in the outgoing transcript instead, immediately before the
+    // model request. Persisted and already-rendered text is untouched.
+    //
+    // The callback is registered for every request kind the 2.0.30 host
+    // dispatches: the agent loop (`context`) plus the auxiliary compaction,
+    // generate and title requests. Only assistant `text` parts and compaction
+    // summaries are rewritten. The `title` request is a single `user` message
+    // (wrapped as "Original request: … Recent conversation: …" when the
+    // session has a custom title, the raw user text otherwise), so it matches
+    // nothing here and the registration is inert; reasoning parts are
+    // deliberately left raw.
+    // `event.messages` is typed from the `context` hook, the superset shape.
+    type TranscriptEvent = {
+      messages: Parameters<Parameters<typeof ctx.session.hook<"context">>[1]>[0]["messages"];
+    };
+
+    const rewriteTranscript = (event: TranscriptEvent): void => {
+      const { messages } = event;
+      for (let i = 0; i < messages.length; i++) {
+        const message = messages[i];
+        if (!message) continue;
+        // Defensive against a non-array `content` (title-event shapes vary):
+        // a no-op here, not a thrown hook (which would fail the model request).
+        if (!Array.isArray(message.content)) continue;
+
+        let changed = false;
+        const content = message.content.map((part) => {
+          if (part.type === "compaction" && typeof part.text === "string") {
+            const text = rewriter.rewrite(part.text);
+            if (text !== part.text) {
+              changed = true;
+              return { ...part, text };
+            }
+          } else if (message.role === "assistant" && part.type === "text") {
+            const text = rewriter.rewrite(part.text);
+            if (text !== part.text) {
+              changed = true;
+              return { ...part, text };
+            }
+          }
+          return part;
+        });
+
+        // Copy on write: a host may freeze the parts, and an already-ASCII
+        // transcript needs no new structure at all. Preserve the Schema.Class
+        // prototype — a plain spread would silently drop it, and downstream
+        // hooks may rely on the class identity.
+        if (changed) {
+          messages[i] = Object.assign(Object.create(Object.getPrototypeOf(message)), message, {
+            content,
+          });
+        }
       }
-    },
+    };
+
+    await ctx.session.hook("context", rewriteTranscript);
+    await ctx.session.hook("compaction", rewriteTranscript);
+    await ctx.session.hook("generate", rewriteTranscript);
+    await ctx.session.hook("title", rewriteTranscript);
+
+    // Substitutions only: `oldString` must keep matching the file, and the
+    // `patch` tool's diffs must stay byte-identical. (The tool is named
+    // `apply_patch` in V1 and `patch` in V2.)
+    await ctx.tool.hook("execute.before", (event) => {
+      if (event.input === null || typeof event.input !== "object") return;
+      const args = event.input as Record<string, unknown>;
+      if (event.tool === "write" && typeof args.content === "string") {
+        args.content = rewriter.substitute(args.content);
+      } else if (event.tool === "edit" && typeof args.newString === "string") {
+        args.newString = rewriter.substitute(args.newString);
+      }
+    });
 
     // Results are replayed to the model, so stripping here is lossy past the
     // tool call; `metadata` is renderer state and is left alone.
-    "tool.execute.after": async (_input, output) => {
-      if (typeof output?.title === "string") output.title = rewriteText(output.title);
-      if (typeof output?.output === "string") output.output = rewriteText(output.output);
-    },
-  };
-};
+    await ctx.tool.hook("execute.after", (event) => {
+      if (event.status !== "completed") return;
+      const result = event.result;
+      let changed = false;
+      const rewritten: Record<string, unknown> = { ...result };
+      // `result.output` is the tool's declared structured value and is never
+      // touched; in V2 the model-visible body is `result.content` (V1's
+      // `output.output` display body maps to it).
+      if (typeof result.content === "string") {
+        // Defensive tolerance: the 2.0.30 host normalizes result.content to an
+        // array before execute.after fires; a bare string is not a host path.
+        const content = rewriter.rewrite(result.content);
+        if (content !== result.content) {
+          changed = true;
+          rewritten.content = content;
+        }
+      } else if (Array.isArray(result.content)) {
+        let contentChanged = false;
+        const content = result.content.map((part) => {
+          if (part.type === "text" && typeof part.text === "string") {
+            const text = rewriter.rewrite(part.text);
+            if (text !== part.text) {
+              contentChanged = true;
+              return { ...part, text };
+            }
+          }
+          return part;
+        });
+        if (contentChanged) {
+          changed = true;
+          rewritten.content = content;
+        }
+      }
+      // Only replace the result when a string actually changed: downstream
+      // hooks must not see a new object identity for an untouched payload.
+      if (changed) event.result = rewritten as typeof result;
+    });
+  },
+});
 
-export default { id: "opencode-ascii", server: AsciiPlugin };
-
-type Assert<T extends true> = T;
-type _HooksConformance = Assert<
-  AsciiPluginHooks extends Pick<Hooks, keyof AsciiPluginHooks> ? true : false
->;
+export default AsciiPlugin;

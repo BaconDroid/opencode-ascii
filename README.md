@@ -1,51 +1,50 @@
 # opencode-ascii
 
-An [OpenCode](https://opencode.ai) plugin that automatically substitutes unicode characters with ASCII-safe equivalents in AI responses and file edits.
+An [OpenCode](https://opencode.ai) **V2** plugin that automatically substitutes unicode characters with ASCII-safe equivalents in AI responses and file edits. It targets the V2 plugin API (`@opencode/plugin`) and does not load in V1; 0.2.0 is the last V1-compatible version.
 
 ## Why?
 
 LLMs love to reach for typographic characters — em-dashes, curly quotes, arrows, emoji — that look great in a browser but cause friction in terminals, code, config files, and plain-text tooling. Tool output has the same problem, and harder: `cat`-ing a file, `ls`-ing a directory or `grep`-ping a repo surfaces whatever the project contains, with no model involved to substitute anything. This plugin intercepts output at three points:
 
-- **AI text responses** (`experimental.text.complete`) — rewrites text parts before they are stored.
-- **File write/edit tool calls** (`tool.execute.before`) — rewrites `write` and `edit` tool arguments before execution. `apply_patch` is deliberately left alone; see [apply_patch is not rewritten](#apply_patch-is-not-rewritten).
-- **Tool results** (`tool.execute.after`) — rewrites the rendered title and body of any tool result, `bash` / `read` / `grep` / `webfetch` / MCP alike.
+- **Assistant text and compaction summaries** (`ctx.session.hook("context")`, plus the same callback on the `compaction` and `generate` request kinds and an inert registration on `title`) — rewrites assistant `text` parts and provider `compaction` content parts (`type: "compaction"`) in the transcript sent to the model. The fallback `<conversation-checkpoint>` summary replays as a user text message and is left raw. User-authored text and tool messages are untouched (provider `compaction` parts are the one exception), and **titles and reasoning parts are left raw** (see [AI text in V2](#ai-text-in-v2)). V2 has no post-stream hook, so already-stored and already-rendered output is untouched.
+- **File write/edit tool calls** (`ctx.tool.hook("execute.before")`) — rewrites `write` and `edit` tool input before execution. `patch` (called `apply_patch` in V1) is deliberately left alone; see [patch is not rewritten](#patch-is-not-rewritten).
+- **Tool results** (`ctx.tool.hook("execute.after")`) — rewrites the model-visible body of a tool result (`result.content` parts, including the host's serialization of a structured `output`). The `result.output` value itself is never mutated.
 
 ## Installation
 
-Add the package to your `opencode.json`:
+Requires OpenCode **v2.0.30 or newer** (V2 plugin API). Point OpenCode at a
+local clone of this fork; the npm caveat below explains why there is no package
+name to install.
 
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-ascii"]
-}
-```
-
-OpenCode resolves the package name itself and installs it via Bun at startup.
-
-> **The npm package `opencode-ascii` is owned by [d3vv3](https://github.com/d3vv3/opencode-ascii).**
-> This fork is not a maintainer of it, so it cannot publish under that name and
-> the registry refuses the upload. Everything documented below — the
-> `stripNonLatin` option, the `frames` and `shapes` categories, and the
-> `tool.execute.after` hook — exists only from **0.2.0**, which is **not on npm**.
-> Install from a clone to get it.
+> **The npm name `opencode-ascii` is owned by [d3vv3](https://github.com/d3vv3/opencode-ascii).**
+> This fork cannot publish under that name, and the registry refuses the upload.
+> The published package is the **V1-only** release, so a V2 config listing
+> `"plugins": ["opencode-ascii"]` loads a plugin that fails on the V2 API.
+> Everything documented below — the `stripNonLatin` option, the `frames` and
+> `shapes` categories, and the result-rewriting feature (V1
+> `tool.execute.after`; V2 `ctx.tool.hook("execute.after")`) — exists only from
+> **0.2.0**, which is **not on npm**; the V2 hook names apply from **0.3.0**.
+> Install from a clone.
 
 ### Installing from a local clone
 
-Point the plugin at the built entry file instead of the package name. `dist/`
-is committed, so no build step is needed as long as you have not edited `src/`:
+Point the plugin at the clone's directory, not at a file. `index.js` at the
+repository root re-exports the built `dist/` entry, and `dist/` is committed, so
+no build step is needed as long as you have not edited `src/`:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    ["/absolute/path/to/opencode-ascii/dist/index.js", { "stripNonLatin": true }]
+  "plugins": [
+    { "package": "/absolute/path/to/opencode-ascii", "options": { "stripNonLatin": true } }
   ]
 }
 ```
 
-If you do edit `src/`, rebuild before restarting OpenCode — the plugin is
-loaded from `dist/`, and OpenCode will not rebuild it for you:
+V2 requires a directory for a local plugin, so the V1 form — an absolute path to
+`dist/index.js` — is rejected and the entry is skipped. If you do edit `src/`,
+rebuild before restarting OpenCode — the directory entry serves `dist/`, and
+OpenCode will not rebuild it for you:
 
 ```sh
 npm run build
@@ -58,15 +57,18 @@ All six substitution categories are **enabled by default**. Disable any category
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    ["opencode-ascii", {
-      "punctuation": true,
-      "frames": true,
-      "shapes": true,
-      "arrows": true,
-      "math": true,
-      "emojis": false
-    }]
+  "plugins": [
+    {
+      "package": "/absolute/path/to/opencode-ascii",
+      "options": {
+        "punctuation": true,
+        "frames": true,
+        "shapes": true,
+        "arrows": true,
+        "math": true,
+        "emojis": false
+      }
+    }
   ]
 }
 ```
@@ -79,13 +81,14 @@ All six substitution categories are **enabled by default**. Disable any category
 | `arrows`      | boolean | `true`  | `→` → `>`, `←` → `<`, `⇄` → `=`, etc.       |
 | `math`        | boolean | `true`  | `≠` → `=`, `≤` → `<=`, `×` → `*`, etc.   |
 | `emojis`      | boolean | `true`  | Emoji and symbols → ASCII (`✓` → `v`, `☐` → `#`; 709 entries) |
-| `stripNonLatin` | boolean | `false` | Strip non-Latin-script characters from AI text responses and tool results (never from files) |
+| `stripNonLatin` | boolean | `false` | Strip non-Latin-script characters from AI text (model-visible transcript) and tool results (never written back to files) |
 
 ### stripNonLatin
 
-`stripNonLatin` is **opt-in** and applies to **AI text responses and tool
-results**. It is never applied to `write` or `edit` tool arguments, and
-`apply_patch` is not rewritten at all.
+`stripNonLatin` is **opt-in** and applies to **AI text (the transcript sent to
+the model) and tool results**. It is never applied to `write` or `edit` tool input, and
+`patch`'s input is not rewritten at all (its result content is still rewritten
+by `execute.after`, like every tool result).
 
 Within an AI text part or a tool result it runs as a second pass, *after* the
 substitutions above:
@@ -183,11 +186,12 @@ documentation, string tables, i18n fixtures — and deleting those characters
 would be silent, irreversible data loss. A `write` or `edit` payload carrying
 Japanese, Russian, or Arabic text is passed through untouched, even with
 `stripNonLatin: true`; only the substitutions above are applied to it. Same for
-`apply_patch`, whose diff must match the target file byte for byte.
+`patch`, whose diff must match the target file byte for byte.
 
-This holds across both file hooks: `tool.execute.before` never substitutes past
-`args.content` / `args.newString`, and `tool.execute.after` only touches
-`output.title` and `output.output`, which cannot reach a file payload.
+This holds across both file hooks: `execute.before` never substitutes past
+`input.content` / `input.newString`, and `execute.after` only touches the result
+body, which cannot modify a file payload on disk (though it does rewrite the
+model-visible `read` result).
 
 ## Substitution reference
 
@@ -382,31 +386,97 @@ See [`src/substitutions.ts`](src/substitutions.ts) for the authoritative list.
 
 ## How it works
 
-The plugin uses three hooks:
+The plugin registers six V2 hooks during `setup(ctx)`:
 
-1. **`experimental.text.complete`** — fired by OpenCode after each AI text part finishes streaming. The plugin rewrites `output.text` in place before it is persisted, applying substitutions and, if enabled, the opt-in `stripNonLatin` pass.
+1. **`ctx.session.hook("context")`** — runs immediately before each agent-loop
+   model request. The plugin rewrites the `text` parts of `assistant` messages
+   in `event.messages`, applying substitutions and, if enabled, the opt-in
+   `stripNonLatin` pass. User and tool messages, `event.system`, and reasoning
+   parts (`type: "reasoning"`) are left alone. Compaction content parts
+   (`type: "compaction"`) that carry a string summary are rewritten in any role.
 
-2. **`tool.execute.before`** — fired before any tool executes. The plugin rewrites:
-   - `output.args.content` for the `write` tool
-   - `output.args.newString` for the `edit` tool (never `oldString` — it must match existing file content exactly)
+   The same callback is registered for the **`compaction`**, **`generate`** and
+   **`title`** request kinds as well. On OpenCode 2.0.30 these are separate
+   hooks, and a transform meant to cover every request must register for each
+   one. That means the `compaction` request's input transcript is rewritten, so
+   the summary is generated from ASCII text (the replayed fallback summary
+   itself arrives as a user text message and is left raw). The `title`
+   registration is **inert**:
+   `SessionTitle.generate` builds a single `user` message — wrapped as
+   `"Original request: … Recent conversation: User: … Assistant: …"` when the
+   session has a custom title, the raw user text otherwise — which never
+   matches the assistant-text filter. All four kinds carry `event.messages`;
+   the filter simply has nothing to match in the title prompt.
 
-   This hook applies substitutions only, never `stripNonLatin`. See [`### stripNonLatin`](#stripnonlatin).
+   Rewriting compaction summaries is a **deliberate risk**: a provider may
+   treat the summary `text` as an opaque checkpoint and expect it back
+   byte-identical. V1 never touched compaction parts. The host offers no
+   separate model-visible field for the summary, so the alternative is to leave
+   it raw; this plugin chooses to rewrite it.
 
-3. **`tool.execute.after`** — fired after any tool returns, with
-   `output.title` and `output.output`. The plugin rewrites both through the
-   same `substitute` → optional `stripNonLatin` pipeline used for AI text.
+2. **`ctx.tool.hook("execute.before")`** — fired before any tool executes. The
+   plugin rewrites:
+   - `event.input.content` for the `write` tool
+   - `event.input.newString` for the `edit` tool (never `oldString` — it must match existing file content exactly)
 
-### tool.execute.after: tool results
+   This hook applies substitutions only, never `stripNonLatin`. See [`stripNonLatin`](#stripnonlatin).
 
-`bash`, `read`, `grep`, `glob`, `list`, `webfetch` and MCP tools surface
-whatever they found, verbatim. None of that goes through
-`experimental.text.complete`, so without this hook a `cat` of a file containing
-CJK, or a `ls` of a Japanese directory name, rendered raw in the TUI. This
-hook is the only interception point the host offers for tool results.
+3. **`ctx.tool.hook("execute.after")`** — fired after a tool completes, with
+   `event.result`. The plugin rewrites `result.content` (an array of content
+   parts; a bare string is also tolerated defensively) through the same
+   `substitute` → optional `stripNonLatin` pipeline used for AI text.
+   `result.output` is never touched — it is the tool's declared structured
+   value (V1's display body was `output.output`, which maps to `result.content`
+   in V2). Failed calls (`status: "error"`) and `metadata` are left alone.
+
+### AI text in V2
+
+V1's `experimental.text.complete` rewrote each assistant text part after
+streaming and before it was stored. **V2 has no equivalent hook** — the
+migration guide lists no direct replacement and says to re-evaluate plugins that
+used it. The narrowest V2 surface that carries assistant text is the `context`
+hook's outgoing transcript, so that is where the text pass now runs. The same
+callback is registered for the `compaction`, `generate` and `title` request
+kinds, because each is a separate request and "a hook that should apply to every
+request must register for each kind". All four exist on OpenCode 2.0.30. What
+the rewrite actually reaches is narrower than the registration:
+
+- assistant **`text` parts** and provider **`compaction` content parts**
+  (`type: "compaction"`) in the outgoing transcript are rewritten, so what the
+  model receives on later turns from those fields is ASCII (and `stripNonLatin`
+  applies). The fallback `<conversation-checkpoint>` summary replays as a user
+  text message and is left raw;
+- **titles are left raw.** The `title` request is a single `user` message, built
+  from the user's own language; rewriting it would neither match the
+  assistant-text filter nor be desirable;
+- **reasoning parts are left raw.** `type: "reasoning"` text is replayed to the
+  model, but rewriting provider reasoning text is unsafe, so it passes through
+  verbatim;
+- the text already persisted and rendered for the turn that produced it is **not**
+  rewritten, and it is not rewritten for display later either;
+- the rewrite happens on a copy assembled for the request, so it is not
+  destructive: the stored message keeps its original characters.
+
+This is a deliberate, documented behaviour change from 0.2.0. It is also why the
+plugin cannot claim to fix unicode already sitting in a session: the host offers
+no post-stream, pre-persistence text hook, and no message-edit API.
+
+### ctx.tool.hook("execute.after"): tool results
+
+`shell`, `read`, `grep`, `glob`, `list`, `webfetch` and MCP tools surface
+whatever they found, verbatim. None of that is rewritten by the `context` hook,
+so without this hook a `cat` of a file containing CJK, or a `ls` of a Japanese
+directory name, reached the model raw. This hook is the interception point the
+host offers for tool results.
+
+One consequence worth knowing: because `read` results are rewritten to ASCII
+while `edit`'s `oldString` must match the existing file byte for byte, a model
+that builds `oldString` from a rewritten `read` result can fail to match a file
+containing unicode. This matches V1 behaviour.
 
 `stripNonLatin` applies here, and unlike the `before` hook it applies to
-**every** tool — this hook has no access to file payloads, only to the two
-strings the TUI renders, so there is nothing to protect.
+**every** tool — the hook only reads `event.result` and never touches
+`event.input`, so a file payload cannot be reached; there is nothing to protect.
 
 Three consequences, stated plainly:
 
@@ -416,32 +486,35 @@ Three consequences, stated plainly:
   the intended trade — the option is opt-in — but `stripNonLatin` is genuinely
   lossy for any turn that continues past a tool call. Nothing is destroyed on
   disk: file payloads are still never stripped.
-- **Redacted results go through the same pass.** The host replaces sensitive
-  tool output with a redacted placeholder and still calls this hook, and
-  `input.tool` does not report whether a payload was redacted, so the pass
-  cannot be skipped selectively. In practice this is inert — placeholders are
-  ASCII — but it does mean the hook runs over content the plugin cannot see,
-  which is why it is limited to the two `string` fields.
+- **`result.output` is never mutated.** V2 tools return structured results:
+  `read`, for example, puts the file in `output` as `{ type: "file", content:
+  "…" }` and also exposes `content` as text parts. The plugin rewrites the
+  `content` parts only — never a field inside a structured `output` payload.
+  One nuance to know: when a tool returns no `content`, the host serializes its
+  output into a text `content` part before this hook runs, and the plugin
+  rewrites that serialization — so the model-visible form can change (and, for
+  JSON-valued tools, can lose JSON validity), while `result.output` itself
+  stays untouched. The plugin never recurses into a structured payload to
+  guess which field is display text.
 - **`metadata` is left alone.** It is structured data the TUI consumes (diff
   metadata, truncation flags, paths). Rewriting it risks the renderer for no
   display gain.
 
-### Known limitation: streaming
+### Known limitation: no display rewriting
 
-`experimental.text.complete` fires **once per text part, after streaming has
-finished**. The TUI has already rendered every token by then, so characters
-emitted mid-stream are displayed with their original typography and only the
-final, persisted copy is rewritten — the next render of that message shows the
-ASCII version, the scrollback you already watched does not.
+The `context` hook runs per model request, so the TUI renders the assistant's
+tokens exactly as the provider produced them, with their original typography.
+Only the copy sent to the model is substituted. There is no per-chunk or
+display-time hook in the V2 host to do better, and the TUI plugin slots expose
+no message-rendering boundary. Tool results do not have this problem: the
+`execute.after` rewrite happens before the result is stored or rendered.
 
-There is no per-chunk hook in the host to do better. `tool.execute.after` does
-not have this problem: tool output is rendered after the tool has returned, so
-the rewrite happens before anything is displayed.
+### patch is not rewritten
 
-### apply_patch is not rewritten
-
-`apply_patch` is **not** handled, and its `args.patchText` payload is passed
-through verbatim.
+The V2 tool is named `patch` (V1 called it `apply_patch`). Its input is **not**
+handled: the `input.patchText` payload is passed through verbatim (the patch
+tool's result content is still rewritten by `execute.after`, like every tool
+result).
 
 A unified diff is machine-parsed, not prose. Its `-` removal lines and its
 context lines must match the target file **byte for byte**, otherwise the patch

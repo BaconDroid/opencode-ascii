@@ -1,7 +1,7 @@
 {
   "name": "opencode-ascii",
-  "version": "0.2.0",
-  "description": "OpenCode plugin that substitutes unicode characters with ASCII equivalents in AI responses and file edits",
+  "version": "0.3.0",
+  "description": "OpenCode v2 plugin that substitutes unicode characters with ASCII equivalents in AI responses and file edits",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -10,21 +10,20 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
-    },
-    "./server": "./dist/index.js"
+    }
   },
   "files": [
-    "dist"
+    "dist",
+    "index.js"
   ],
   "scripts": {
     "build": "tsc",
-    "test": "vitest run",
+    "test": "tsc -p tsconfig.test.json && vitest run",
     "test:watch": "vitest",
-    "verify": "tsc && git diff --exit-code -- dist && vitest run",
+    "verify": "tsc && tsc -p tsconfig.test.json && git diff --exit-code -- dist && vitest run",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "@opencode-ai/plugin": "latest",
     "typescript": "^5",
     "vitest": "^4.1.2"
   },
@@ -38,5 +37,8 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/d3vv3/opencode-ascii.git"
+  },
+  "dependencies": {
+    "@opencode/plugin": "~2.0.30"
   }
 }
